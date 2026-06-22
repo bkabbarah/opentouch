@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import torch.nn.functional as F
 import torch
 import torch.nn as nn
 
@@ -13,6 +13,7 @@ _VALID_NORMALIZE_MODES = {"none", "simple"}
 class PoseEncoder(nn.Module):
     def __init__(self, emb_dim: int = 64, normalize_mode: str = "simple"):
         super().__init__()
+        self.gru = nn.GRU(128, 120, num_layers=2, bidirectional=True, batch_first=True)
         if normalize_mode not in _VALID_NORMALIZE_MODES:
             raise ValueError("Invalid model configuration.")
         self.normalize_mode = normalize_mode
@@ -30,7 +31,7 @@ class PoseEncoder(nn.Module):
             nn.Dropout(0.1),
             nn.Linear(128, 128),
         )
-        self.projection = nn.Linear(128, emb_dim)
+        self.projection = nn.Linear(240, emb_dim)  # replaces existing projection
 
     @torch.no_grad()
     def _normalize_pose(self, x: torch.Tensor) -> torch.Tensor:
@@ -55,5 +56,9 @@ class PoseEncoder(nn.Module):
         if self.normalize_mode == "simple":
             landmarks = self._normalize_pose(landmarks)
         encoded = self.encoder(landmarks.reshape(b * t, _INPUT_DIM))
-        pooled = encoded.view(b, t, -1).mean(dim=1)
-        return self.projection(pooled)
+        seq = encoded.view(b, t, -1)
+        self.gru.flatten_parameters()
+        _, h_n = self.gru(seq)
+        combined = torch.cat([h_n[-2], h_n[-1]], dim=-1)  # fwd last + bwd last
+        return self.projection(F.relu(combined))
+
