@@ -178,6 +178,24 @@ def main(argv=None):
                 log.info(f"  rank {ranks[worst_idx[i]]:4d} | {scene} | {clip_id}")
     
     labels = torch.arange(num_samples).long()
+
+    if all_metadata:
+        import csv
+        worst_data = []
+        for i, idx in enumerate(worst_idx.tolist()):
+            if idx < len(all_metadata):
+                scene, clip_id = all_metadata[idx]
+                worst_data.append({
+                    "query_idx": idx,
+                    "rank": ranks[worst_idx[i]].item(),
+                    "scene": scene,
+                    "clip_id": clip_id,
+                })
+        with open("worst_queries.csv", "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["query_idx", "rank", "scene", "clip_id"])
+            writer.writeheader()
+            writer.writerows(worst_data)
+        log.info("Saved worst queries to worst_queries.csv")
     val_loss = (
         F.cross_entropy(logits_q2t, labels)
         + F.cross_entropy(logits_q2t.t(), labels)
