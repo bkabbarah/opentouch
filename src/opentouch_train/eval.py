@@ -165,8 +165,8 @@ def main(argv=None):
 
     # Per-query rank analysis
     ranks = (logits_q2t.argsort(dim=1, descending=True) == torch.arange(num_samples).unsqueeze(1)).nonzero()[:, 1] + 1
-    worst_idx = ranks.argsort(descending=True)[:20]
-    log.info(f"Worst 20 query indices: {worst_idx.tolist()}")
+    worst_idx = ranks.argsort(descending=True)[:100]
+    log.info(f"Worst 100 query indices: {worst_idx.tolist()}")
     log.info(f"Their ranks: {ranks[worst_idx].tolist()}")
     log.info(f"Rank distribution - median: {ranks.float().median():.1f}, mean: {ranks.float().mean():.1f}, max: {ranks.max()}")
 
