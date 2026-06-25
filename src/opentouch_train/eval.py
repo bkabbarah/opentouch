@@ -137,6 +137,7 @@ def main(argv=None):
     all_mods = list(set(query_mods) | set(target_mods))
 
     all_query_features, all_target_features = [], []
+    all_metadata = []
     logit_scale_val = None
 
     from opentouch_train.train import _extract_batch_tensors, _get_query_target_features
@@ -151,6 +152,8 @@ def main(argv=None):
                 )
                 all_query_features.append(query_feat.cpu())
                 all_target_features.append(target_feat.cpu())
+                if "scene" in batch:
+                    all_metadata.extend(zip(batch["scene"], batch["clip_id"]))
                 if logit_scale_val is None:
                     logit_scale_val = model_out["logit_scale"].mean().cpu()
 
@@ -166,6 +169,13 @@ def main(argv=None):
     log.info(f"Worst 20 query indices: {worst_idx.tolist()}")
     log.info(f"Their ranks: {ranks[worst_idx].tolist()}")
     log.info(f"Rank distribution - median: {ranks.float().median():.1f}, mean: {ranks.float().mean():.1f}, max: {ranks.max()}")
+
+    if all_metadata:
+        log.info("Worst query metadata:")
+        for i, idx in enumerate(worst_idx.tolist()):
+            if idx < len(all_metadata):
+                scene, clip_id = all_metadata[idx]
+                log.info(f"  rank {ranks[worst_idx[i]]:4d} | {scene} | {clip_id}")
     
     labels = torch.arange(num_samples).long()
     val_loss = (
