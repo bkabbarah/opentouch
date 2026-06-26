@@ -6,6 +6,7 @@ import os
 
 import torch
 import torch.nn as nn
+import wandb
 from torch.utils.data import DataLoader
 from datasets import load_from_disk
 
@@ -24,12 +25,11 @@ def parse_args():
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    p.add_argument("--wandb-project", default="opentouch")
     return p.parse_args()
 
 
 class TactileOnlyDataset(torch.utils.data.Dataset):
-    """Wraps the HF dataset and returns only tactile pressure frames."""
-
     def __init__(self, hf_dataset):
         self.dataset = hf_dataset
 
@@ -41,13 +41,18 @@ class TactileOnlyDataset(torch.utils.data.Dataset):
         pressure = torch.tensor(
             item["right_pressure_image"], dtype=torch.float32
         ) / 255.0
-        # pressure shape: [16, 16]
         return pressure.unsqueeze(0)  # [1, 16, 16]
 
 
 def main():
     args = parse_args()
     device = torch.device(args.device)
+
+    wandb.init(
+        project=args.wandb_project,
+        name="tactile_autoencoder_pretrain",
+        config=vars(args),
+    )
 
     log.info("Loading dataset...")
     hf_dataset = load_from_disk(args.data)
@@ -70,8 +75,6 @@ def main():
         total_loss = 0.0
         for batch in dataloader:
             batch = batch.to(device)
-            # batch shape: [B, 1, 16, 16]
-            # wrap in fake T=1 sequence for _normalize_input
             x = batch.unsqueeze(1)  # [B, 1, 1, 16, 16]
             reconstruction, original = model(x)
             loss = criterion(reconstruction, original)
@@ -82,10 +85,12 @@ def main():
 
         avg_loss = total_loss / len(dataloader)
         log.info(f"Epoch {epoch+1}/{args.epochs} | loss: {avg_loss:.6f}")
+        wandb.log({"pretrain/loss": avg_loss, "epoch": epoch + 1})
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     torch.save(model.encoder.state_dict(), args.output)
     log.info(f"Saved encoder weights to {args.output}")
+    wandb.finish()
 
 
 if __name__ == "__main__":

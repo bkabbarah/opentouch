@@ -9,15 +9,11 @@ class TactileDecoder(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.decoder = nn.Sequential(
-            # [B*T, 128] -> [B*T, 32, 2, 2]
             nn.Unflatten(1, (32, 2, 2)),
-            # [B*T, 32, 2, 2] -> [B*T, 32, 4, 4]
             nn.ConvTranspose2d(32, 32, 2, stride=2),
             nn.ReLU(inplace=True),
-            # [B*T, 32, 4, 4] -> [B*T, 32, 8, 8]
             nn.ConvTranspose2d(32, 32, 2, stride=2),
             nn.ReLU(inplace=True),
-            # [B*T, 32, 8, 8] -> [B*T, 1, 16, 16]
             nn.ConvTranspose2d(32, 1, 2, stride=2),
         )
 
