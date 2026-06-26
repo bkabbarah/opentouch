@@ -29,6 +29,16 @@ from opentouch_train.distributed import is_master
 from opentouch_train.precision import get_autocast
 
 
+ALL_TASKS = [
+    (["visual"], ["tactile"]),
+    (["pose"], ["tactile"]),
+    (["visual"], ["pose"]),
+    (["visual", "pose"], ["tactile"]),
+    (["tactile", "pose"], ["visual"]),
+    (["visual", "tactile"], ["pose"]),
+]
+
+
 class AverageMeter:
     def __init__(self):
         self.reset()
@@ -91,6 +101,29 @@ def _get_query_target_features(model_out, query_mods, target_mods, model):
     return query_features, target_features
 
 
+def _compute_multitask_loss(model_out, task_list, loss, logit_scale, model, device):
+    """Compute summed InfoNCE loss over all task pairs."""
+    total_loss = torch.tensor(0.0, device=device)
+    losses_dict = {}
+    for query_mods, target_mods in task_list:
+        query_features, target_features = _get_query_target_features(
+            model_out, query_mods, target_mods, model,
+        )
+        task_losses = loss(
+            query_features,
+            target_features,
+            logit_scale,
+            logit_bias=model_out.get("logit_bias"),
+            output_dict=True,
+        )
+        task_key = f"{'_'.join(query_mods)}_to_{'_'.join(target_mods)}"
+        for k, v in task_losses.items():
+            losses_dict[f"{task_key}/{k}"] = v
+        total_loss = total_loss + sum(task_losses.values())
+    losses_dict["loss"] = total_loss
+    return total_loss, losses_dict
+
+
 def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist_model, args, tb_writer=None):
     device = torch.device(args.device)
     autocast = get_autocast(args.precision, device_type=device.type)
@@ -98,8 +131,13 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
 
     model.train()
 
-    query_mods, target_mods = parse_task(args.task_type)
-    all_mods = list(set(query_mods) | set(target_mods))
+    if args.task_type == "all":
+        task_list = ALL_TASKS
+        all_mods = ["visual", "tactile", "pose"]
+    else:
+        query_mods, target_mods = parse_task(args.task_type)
+        task_list = [(query_mods, target_mods)]
+        all_mods = list(set(query_mods) | set(target_mods))
 
     data['train'].set_epoch(epoch)
     dataloader = data['train'].dataloader
@@ -135,23 +173,12 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             with autocast():
                 model_out = model(**batch_tensors)
                 logit_scale = model_out["logit_scale"]
-
-                query_features, target_features = _get_query_target_features(
-                    model_out, query_mods, target_mods, model,
+                total_loss, losses_dict = _compute_multitask_loss(
+                    model_out, task_list, loss, logit_scale, model, device,
                 )
-                losses_dict = loss(
-                    query_features,
-                    target_features,
-                    logit_scale,
-                    logit_bias=model_out.get("logit_bias"),
-                    output_dict=True,
-                )
-                total_loss = sum(losses_dict.values())
-                losses_dict["loss"] = total_loss
 
             backward(total_loss, scaler)
         else:
-            # Gradient accumulation
             with torch.no_grad():
                 with autocast():
                     model_out = model(**batch_tensors)
@@ -174,9 +201,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                     model_out = model(**batch_j)
 
                     inputs_no_accum = {}
-                    inputs_no_accum["logit_scale"] = logit_scale = model_out.pop(
-                        "logit_scale"
-                    )
+                    inputs_no_accum["logit_scale"] = logit_scale = model_out.pop("logit_scale")
                     if "logit_bias" in model_out:
                         inputs_no_accum["logit_bias"] = model_out.pop("logit_bias")
 
@@ -188,19 +213,10 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                         )
 
                     merged_out = {**inputs, **inputs_no_accum}
-                    query_features, target_features = _get_query_target_features(
-                        merged_out, query_mods, target_mods, model,
-                    )
-                    losses_dict = loss(
-                        query_features,
-                        target_features,
-                        logit_scale,
-                        logit_bias=inputs_no_accum.get("logit_bias"),
-                        output_dict=True,
+                    total_loss, losses_dict = _compute_multitask_loss(
+                        merged_out, task_list, loss, logit_scale, model, device,
                     )
                     del inputs, inputs_no_accum
-                    total_loss = sum(losses_dict.values())
-                    losses_dict["loss"] = total_loss
 
                 backward(total_loss, scaler)
 
@@ -241,7 +257,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             for key, val in losses_dict.items():
                 if key not in losses_m:
                     losses_m[key] = AverageMeter()
-                losses_m[key].update(val.item(), batch_size)
+                losses_m[key].update(val.item() if hasattr(val, 'item') else val, batch_size)
 
             logit_scale_scalar = logit_scale.item()
             samples_per_second = (
@@ -249,7 +265,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             )
 
             pbar.set_postfix(
-                loss=f"{list(losses_m.values())[0].avg:.4f}" if losses_m else "N/A",
+                loss=f"{losses_m['loss'].avg:.4f}" if 'loss' in losses_m else "N/A",
                 lr=f"{optimizer.param_groups[0]['lr']:.1e}",
                 sps=f"{samples_per_second:.0f}",
             )
@@ -277,7 +293,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
 
 
 def evaluate(model, data, epoch, args, tb_writer=None):
-    """Evaluate on validation data: compute val loss and retrieval metrics."""
+    """Evaluate on validation data across all task pairs."""
     metrics = {}
     if not is_master(args):
         return metrics
@@ -288,81 +304,107 @@ def evaluate(model, data, epoch, args, tb_writer=None):
     autocast = get_autocast(args.precision, device_type=device.type)
     input_dtype = get_input_dtype(args.precision)
 
-    query_mods, target_mods = parse_task(args.task_type)
-    all_mods = list(set(query_mods) | set(target_mods))
-    query_label = "+".join(query_mods)
-    target_label = "+".join(target_mods)
-    query_key = query_label.replace("+", "_")
-    target_key = target_label.replace("+", "_")
+    if args.task_type == "all":
+        task_list = ALL_TASKS
+        all_mods = ["visual", "tactile", "pose"]
+    else:
+        query_mods, target_mods = parse_task(args.task_type)
+        task_list = [(query_mods, target_mods)]
+        all_mods = list(set(query_mods) | set(target_mods))
 
-    if "val" in data and (
-        args.val_frequency
-        and ((epoch % args.val_frequency) == 0 or epoch == args.epochs)
-    ):
-        eval_model = model
-        if args.distributed:
-            eval_model = unwrap_model(model)
-
-        dataloader = data['val'].dataloader
-
-        all_query_features, all_target_features = [], []
-        logit_scale_val = None
-
-        with torch.inference_mode():
-            for i, batch in enumerate(dataloader):
-                batch_tensors = _extract_batch_tensors(batch, all_mods, device, input_dtype)
-                with autocast():
-                    model_out = eval_model(**batch_tensors)
-                    query_feat, target_feat = _get_query_target_features(
-                        model_out, query_mods, target_mods, eval_model,
-                    )
-                    all_query_features.append(query_feat.cpu())
-                    all_target_features.append(target_feat.cpu())
-                    if logit_scale_val is None:
-                        logit_scale_val = model_out["logit_scale"].mean().cpu()
-
-            all_query = torch.cat(all_query_features)
-            all_target = torch.cat(all_target_features)
-            num_samples = len(all_query)
-
-            logits_q2t = logit_scale_val * all_query @ all_target.t()
-            labels = torch.arange(num_samples).long()
-            val_loss = (
-                F.cross_entropy(logits_q2t, labels)
-                + F.cross_entropy(logits_q2t.t(), labels)
-            ) / 2
-            retrieval_metrics = compute_retrieval_metrics(
-                all_query,
-                all_target,
-                top_k=[1, 5, 10],
-                query_label=query_label,
-                target_label=target_label,
-            )
-
-            for direction, values in retrieval_metrics.items():
-                for name, value in values.items():
-                    metrics[f"{direction}_{name}"] = value
-
-            metrics.update({"val_loss": val_loss.item(), "epoch": epoch, "num_samples": num_samples})
-
-    if not metrics:
+    if "val" not in data:
+        return metrics
+    if not (args.val_frequency and (
+        (epoch % args.val_frequency) == 0 or epoch == args.epochs
+    )):
         return metrics
 
-    fwd = f"{query_key}_to_{target_key}"
-    rev = f"{target_key}_to_{query_key}"
+    eval_model = unwrap_model(model) if args.distributed else model
+    dataloader = data['val'].dataloader
 
-    def _fmt(d):
-        return (
-            f"R@1/5/10: {metrics.get(f'{d}_recall@1', 0):.4f}/"
-            f"{metrics.get(f'{d}_recall@5', 0):.4f}/"
-            f"{metrics.get(f'{d}_recall@10', 0):.4f}  "
-            f"mAP: {metrics.get(f'{d}_mAP', 0):.4f}"
+    # Encode all val samples once
+    all_features = {mod: [] for mod in ["visual", "tactile", "pose"]}
+    logit_scale_val = None
+
+    with torch.inference_mode():
+        for batch in dataloader:
+            batch_tensors = _extract_batch_tensors(batch, all_mods, device, input_dtype)
+            with autocast():
+                model_out = eval_model(**batch_tensors)
+                if logit_scale_val is None:
+                    logit_scale_val = model_out["logit_scale"].mean().cpu()
+                for mod in all_mods:
+                    feat_key = MODALITY_TO_FEATURE_KEY[mod]
+                    if feat_key in model_out:
+                        all_features[mod].append(model_out[feat_key].cpu())
+
+    for mod in all_mods:
+        if all_features[mod]:
+            all_features[mod] = torch.cat(all_features[mod])
+
+    # Compute val loss and retrieval metrics for each task
+    total_val_loss = 0.0
+    num_tasks = 0
+
+    for query_mods, target_mods in task_list:
+        query_label = "+".join(query_mods)
+        target_label = "+".join(target_mods)
+
+        if len(query_mods) == 1:
+            query_features = all_features[query_mods[0]]
+        else:
+            # fuse encoded features for multi-modal query
+            encoded = {mod: all_features[mod] for mod in query_mods}
+            query_features = eval_model.fuse_encoded_features(encoded, target_mods[0])
+
+        target_features = all_features[target_mods[0]]
+        num_samples = len(query_features)
+
+        logits_q2t = logit_scale_val * query_features @ target_features.t()
+        labels = torch.arange(num_samples).long()
+        task_val_loss = (
+            F.cross_entropy(logits_q2t, labels)
+            + F.cross_entropy(logits_q2t.t(), labels)
+        ) / 2
+        total_val_loss += task_val_loss.item()
+        num_tasks += 1
+
+        retrieval_metrics = compute_retrieval_metrics(
+            query_features,
+            target_features,
+            top_k=[1, 5, 10],
+            query_label=query_label,
+            target_label=target_label,
         )
-    logging.info(
-        f"Eval Epoch: {epoch}  loss: {metrics.get('val_loss', 0):.4f}\n"
-        f"  {query_label}->{target_label}  {_fmt(fwd)}\n"
-        f"  {target_label}->{query_label}  {_fmt(rev)}"
-    )
+        for direction, values in retrieval_metrics.items():
+            for name, value in values.items():
+                metrics[f"{direction}_{name}"] = value
+
+    metrics["val_loss"] = total_val_loss / max(num_tasks, 1)
+    metrics["epoch"] = epoch
+    metrics["num_samples"] = num_samples
+
+    # Log summary
+    logging.info(f"Eval Epoch: {epoch}  avg_val_loss: {metrics['val_loss']:.4f}")
+    for query_mods, target_mods in task_list:
+        query_label = "+".join(query_mods)
+        target_label = "+".join(target_mods)
+        query_key = query_label.replace("+", "_")
+        target_key = target_label.replace("+", "_")
+        fwd = f"{query_key}_to_{target_key}"
+        rev = f"{target_key}_to_{query_key}"
+        logging.info(
+            f"  {query_label}->{target_label}  "
+            f"R@1/5/10: {metrics.get(f'{fwd}_recall@1', 0):.4f}/"
+            f"{metrics.get(f'{fwd}_recall@5', 0):.4f}/"
+            f"{metrics.get(f'{fwd}_recall@10', 0):.4f}  "
+            f"mAP: {metrics.get(f'{fwd}_mAP', 0):.4f}\n"
+            f"  {target_label}->{query_label}  "
+            f"R@1/5/10: {metrics.get(f'{rev}_recall@1', 0):.4f}/"
+            f"{metrics.get(f'{rev}_recall@5', 0):.4f}/"
+            f"{metrics.get(f'{rev}_recall@10', 0):.4f}  "
+            f"mAP: {metrics.get(f'{rev}_mAP', 0):.4f}"
+        )
 
     log_data = {"val/" + name: val for name, val in metrics.items()}
 

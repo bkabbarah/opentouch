@@ -40,6 +40,7 @@ def parse_task(task_str: str) -> Tuple[List[str], List[str]]:
         raise ValueError("Invalid modality input.")
     return TASK_ALIASES[key]
 
+
 MODALITY_TO_BATCH_KEY = {
     "visual": "rgb_images",
     "tactile": "tactile_pressure",
@@ -259,6 +260,12 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _determine_modality_flags(task_type: str) -> Dict[str, bool]:
+    if task_type == "all":
+        return {
+            "include_visual": True,
+            "include_tactile": True,
+            "include_pose": True,
+        }
     query_mods, target_mods = parse_task(task_type)
     all_mods = set(query_mods) | set(target_mods)
     return {
