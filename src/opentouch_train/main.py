@@ -140,10 +140,12 @@ def main(args):
 
     random_seed(args.seed, 0)
 
-    from opentouch_train.data import parse_task
-    query_mods, target_mods = parse_task(args.task_type)
-    enabled_modalities = list(set(query_mods) | set(target_mods))
-
+    if args.task_type == "all":
+        enabled_modalities = ["visual", "tactile", "pose"]
+    else:
+        from opentouch_train.data import parse_task
+        query_mods, target_mods = parse_task(args.task_type)
+        enabled_modalities = list(set(query_mods) | set(target_mods))
     model_kwargs = {
         'enabled_modalities': enabled_modalities,
     }
