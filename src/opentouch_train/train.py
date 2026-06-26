@@ -354,8 +354,9 @@ def evaluate(model, data, epoch, args, tb_writer=None):
             query_features = all_features[query_mods[0]]
         else:
             # fuse encoded features for multi-modal query
-            encoded = {mod: all_features[mod] for mod in query_mods}
-            query_features = eval_model.fuse_encoded_features(encoded, target_mods[0])
+            # move to device for fusion, then back to cpu
+            encoded = {mod: all_features[mod].to(device) for mod in query_mods}
+            query_features = eval_model.fuse_encoded_features(encoded, target_mods[0]).cpu()
 
         target_features = all_features[target_mods[0]]
         num_samples = len(query_features)
