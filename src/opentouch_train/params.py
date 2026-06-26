@@ -66,6 +66,12 @@ def parse_args(args):
         help="Path to pretrained model checkpoint.",
     )
     parser.add_argument(
+        "--tactile-pretrained",
+        default='',
+        type=str,
+        help="Path to pretrained tactile CNN encoder weights (.pt file).",
+    )
+    parser.add_argument(
         "--cache-dir",
         type=str,
         default=None,

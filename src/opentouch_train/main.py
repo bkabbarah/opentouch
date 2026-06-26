@@ -159,6 +159,12 @@ def main(args):
 
     random_seed(args.seed, args.rank)
 
+    if args.tactile_pretrained:
+            import torch
+            pretrained_weights = torch.load(args.tactile_pretrained, map_location=device)
+            model.tactile.cnn.load_state_dict(pretrained_weights)
+            logging.info(f"Loaded pretrained tactile CNN weights from {args.tactile_pretrained}")
+            
     if is_master(args):
         logging.info("Model:")
         logging.info(f"{str(model)}")
