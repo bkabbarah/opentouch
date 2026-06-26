@@ -4,10 +4,11 @@ import argparse
 import logging
 import os
 
+import numpy as np
 import torch
 import torch.nn as nn
 import wandb
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 from datasets import load_from_disk
 
 from opentouch.tactile_autoencoder import TactileAutoencoder
@@ -19,6 +20,7 @@ log = logging.getLogger(__name__)
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data", required=True, help="Path to preprocessed HF dataset.")
+    p.add_argument("--stag-data", default=None, help="Path to STAG pressure_16x16.npy")
     p.add_argument("--output", required=True, help="Path to save pretrained encoder weights.")
     p.add_argument("--epochs", type=int, default=100)
     p.add_argument("--batch-size", type=int, default=512)
@@ -44,6 +46,19 @@ class TactileOnlyDataset(torch.utils.data.Dataset):
         return pressure.unsqueeze(0)  # [1, 16, 16]
 
 
+class STAGDataset(torch.utils.data.Dataset):
+    def __init__(self, npy_path: str):
+        self.data = torch.tensor(
+            np.load(npy_path), dtype=torch.float32
+        )  # (N, 16, 16)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx].unsqueeze(0)  # (1, 16, 16)
+
+
 def main():
     args = parse_args()
     device = torch.device(args.device)
@@ -54,17 +69,27 @@ def main():
         config=vars(args),
     )
 
-    log.info("Loading dataset...")
+    log.info("Loading OpenTouch dataset...")
     hf_dataset = load_from_disk(args.data)
-    dataset = TactileOnlyDataset(hf_dataset)
+    opentouch_dataset = TactileOnlyDataset(hf_dataset)
+    log.info(f"OpenTouch dataset size: {len(opentouch_dataset)} frames")
+
+    datasets_list = [opentouch_dataset]
+    if args.stag_data:
+        stag_dataset = STAGDataset(args.stag_data)
+        log.info(f"STAG dataset size: {len(stag_dataset)} frames")
+        datasets_list.append(stag_dataset)
+
+    combined = ConcatDataset(datasets_list)
+    log.info(f"Combined dataset size: {len(combined)} frames")
+
     dataloader = DataLoader(
-        dataset,
+        combined,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.workers,
         pin_memory=True,
     )
-    log.info(f"Dataset size: {len(dataset)} frames")
 
     model = TactileAutoencoder().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
