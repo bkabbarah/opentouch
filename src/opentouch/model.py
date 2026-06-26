@@ -113,24 +113,11 @@ class CrossRetrievalModel(nn.Module):
             logger.warning(f"Fusion '{self.fusion_method}' not supported, only 'concat' implemented.")
             return
         if {"tactile", "visual"}.issubset(self.enabled_modalities):
-            self.tactile_visual_fusion = nn.Sequential(
-                nn.Linear(self.embed_dim * 2, self.embed_dim),
-                nn.ReLU(),
-                nn.Linear(self.embed_dim, self.embed_dim)
-            )
+            self.tactile_visual_fusion = nn.Linear(self.embed_dim * 2, self.embed_dim)
         if {"pose", "visual"}.issubset(self.enabled_modalities):
-            self.pose_visual_fusion = nn.Sequential(
-                nn.Linear(self.embed_dim * 2, self.embed_dim),
-                nn.ReLU(),
-                nn.Linear(self.embed_dim, self.embed_dim)
-            )
-            
+            self.pose_visual_fusion = nn.Linear(self.embed_dim * 2, self.embed_dim)
         if {"tactile", "pose"}.issubset(self.enabled_modalities):
-            self.tactile_pose_fusion = nn.Sequential(
-                nn.Linear(self.embed_dim * 2, self.embed_dim),
-                nn.ReLU(),
-                nn.Linear(self.embed_dim, self.embed_dim)
-            )
+            self.tactile_pose_fusion = nn.Linear(self.embed_dim * 2, self.embed_dim)
                     
     def _normalize_embedding(self, emb: torch.Tensor) -> torch.Tensor:
         return F.normalize(emb, dim=-1) if self.normalize else emb
