@@ -12,7 +12,6 @@ import logging
 from pathlib import Path
 
 import torch
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from opentouch import create_model, compute_retrieval_metrics, get_input_dtype
@@ -36,21 +35,6 @@ def _read_params_file(params_file: Path) -> dict:
             params[key.strip()] = value.strip()
     return params
 
-
-def _expand_retrieval_metrics(retrieval_metrics: dict) -> dict:
-    metrics = {}
-    for direction, values in retrieval_metrics.items():
-        for name, value in values.items():
-            metrics[f"{direction}_{name}"] = value
-    return metrics
-
-
-def _direction_keys(query_mods, target_mods):
-    query_label = "+".join(query_mods)
-    target_label = "+".join(target_mods)
-    query_key = query_label.replace("+", "_")
-    target_key = target_label.replace("+", "_")
-    return query_label, target_label, f"{query_key}_to_{target_key}", f"{target_key}_to_{query_key}"
 
 
 def _read_checkpoint_meta(path):
@@ -109,8 +93,16 @@ def main(argv=None):
     log.info(f"Model: {args.model}  Task: {args.task_type}  Epoch: {meta.get('epoch', '?')}")
 
     device = torch.device(args.device)
-    query_mods, target_mods = parse_task(args.task_type)
-    modality_flags = _determine_modality_flags(args.task_type)
+    from opentouch_train.train import ALL_TASKS
+    if args.task_type == "all":
+        task_list = ALL_TASKS
+        modality_flags = {"include_visual": True, "include_tactile": True, "include_pose": True}
+        all_mods = ["visual", "tactile", "pose"]
+    else:
+        query_mods, target_mods = parse_task(args.task_type)
+        task_list = [(query_mods, target_mods)]
+        modality_flags = _determine_modality_flags(args.task_type)
+        all_mods = list(set(query_mods) | set(target_mods))
 
     model = create_model(args.model, pretrained=args.checkpoint, precision=args.precision, device=device)
     model.eval()
@@ -134,105 +126,75 @@ def main(argv=None):
 
     autocast = get_autocast(args.precision, device_type=device.type)
     input_dtype = get_input_dtype(args.precision)
-    all_mods = list(set(query_mods) | set(target_mods))
 
-    all_query_features, all_target_features = [], []
+    from opentouch_train.data import MODALITY_TO_FEATURE_KEY
+    all_features = {"visual": [], "tactile": [], "pose": []}
     all_metadata = []
     logit_scale_val = None
 
-    from opentouch_train.train import _extract_batch_tensors, _get_query_target_features
+    from opentouch_train.train import _extract_batch_tensors
 
     with torch.inference_mode():
         for batch in dataloader:
             batch_tensors = _extract_batch_tensors(batch, all_mods, device, input_dtype)
             with autocast():
                 model_out = model(**batch_tensors)
-                query_feat, target_feat = _get_query_target_features(
-                    model_out, query_mods, target_mods, model,
-                )
-                all_query_features.append(query_feat.cpu())
-                all_target_features.append(target_feat.cpu())
-                if "scene" in batch:
-                    all_metadata.extend(zip(batch["scene"], batch["clip_id"]))
                 if logit_scale_val is None:
                     logit_scale_val = model_out["logit_scale"].mean().cpu()
+                for mod in all_mods:
+                    feat_key = MODALITY_TO_FEATURE_KEY[mod]
+                    if feat_key in model_out:
+                        all_features[mod].append(model_out[feat_key].cpu())
+                if "scene" in batch:
+                    all_metadata.extend(zip(batch["scene"], batch["clip_id"]))
 
-    all_query = torch.cat(all_query_features)
-    all_target = torch.cat(all_target_features)
-    num_samples = len(all_query)
+    for mod in all_mods:
+        if all_features[mod]:
+            all_features[mod] = torch.cat(all_features[mod])
 
-    logits_q2t = logit_scale_val * all_query @ all_target.t()
+    metrics = {"split": args.split}
+    print(f"\n{'='*60}")
+    print(f"  Checkpoint : {args.checkpoint}")
+    print(f"  Split      : {args.split}")
+    print(f"{'='*60}")
 
-    # Per-query rank analysis
-    ranks = (logits_q2t.argsort(dim=1, descending=True) == torch.arange(num_samples).unsqueeze(1)).nonzero()[:, 1] + 1
-    worst_idx = ranks.argsort(descending=True)[:100]
-    log.info(f"Worst 100 query indices: {worst_idx.tolist()}")
-    log.info(f"Their ranks: {ranks[worst_idx].tolist()}")
-    log.info(f"Rank distribution - median: {ranks.float().median():.1f}, mean: {ranks.float().mean():.1f}, max: {ranks.max()}")
+    for query_mods, target_mods in task_list:
+        query_label = "+".join(query_mods)
+        target_label = "+".join(target_mods)
+        query_key = query_label.replace("+", "_")
+        target_key = target_label.replace("+", "_")
+        fwd = f"{query_key}_to_{target_key}"
+        rev = f"{target_key}_to_{query_key}"
 
-    if all_metadata:
-        log.info("Worst query metadata:")
-        for i, idx in enumerate(worst_idx.tolist()):
-            if idx < len(all_metadata):
-                scene, clip_id = all_metadata[idx]
-                log.info(f"  rank {ranks[worst_idx[i]]:4d} | {scene} | {clip_id}")
-    
-    labels = torch.arange(num_samples).long()
+        if len(query_mods) == 1:
+            query_features = all_features[query_mods[0]]
+        else:
+            encoded = {mod: all_features[mod].to(device) for mod in query_mods}
+            with torch.no_grad():
+                query_features = model.fuse_encoded_features(encoded, target_mods[0]).detach().cpu()
 
-    if all_metadata:
-        import csv
-        worst_data = []
-        for i, idx in enumerate(worst_idx.tolist()):
-            if idx < len(all_metadata):
-                scene, clip_id = all_metadata[idx]
-                worst_data.append({
-                    "query_idx": idx,
-                    "rank": ranks[worst_idx[i]].item(),
-                    "scene": scene,
-                    "clip_id": clip_id,
-                })
-        with open("worst_queries.csv", "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["query_idx", "rank", "scene", "clip_id"])
-            writer.writeheader()
-            writer.writerows(worst_data)
-        log.info("Saved worst queries to worst_queries.csv")
-    val_loss = (
-        F.cross_entropy(logits_q2t, labels)
-        + F.cross_entropy(logits_q2t.t(), labels)
-    ) / 2
+        target_features = all_features[target_mods[0]].clone()
 
-    retrieval_metrics = compute_retrieval_metrics(
-        all_query, all_target, top_k=[1, 5, 10],
-        query_label="+".join(query_mods),
-        target_label="+".join(target_mods),
-    )
+        retrieval_metrics = compute_retrieval_metrics(
+            query_features, target_features, top_k=[1, 5, 10],
+            query_label=query_label, target_label=target_label,
+        )
+        for direction, values in retrieval_metrics.items():
+            for name, value in values.items():
+                metrics[f"{direction}_{name}"] = value
 
-    query_label, target_label, fwd, rev = _direction_keys(query_mods, target_mods)
-    metrics = {
-        "split": args.split,
-        "val_loss": val_loss.item(),
-        "num_samples": num_samples,
-        **_expand_retrieval_metrics(retrieval_metrics),
-    }
+        print(f"\n  {query_label} -> {target_label}")
+        print(f"    R@1  : {metrics.get(f'{fwd}_recall@1', 0):.4f}")
+        print(f"    R@5  : {metrics.get(f'{fwd}_recall@5', 0):.4f}")
+        print(f"    R@10 : {metrics.get(f'{fwd}_recall@10', 0):.4f}")
+        print(f"    mAP  : {metrics.get(f'{fwd}_mAP', 0):.4f}")
+        print(f"  {target_label} -> {query_label}")
+        print(f"    R@1  : {metrics.get(f'{rev}_recall@1', 0):.4f}")
+        print(f"    R@5  : {metrics.get(f'{rev}_recall@5', 0):.4f}")
+        print(f"    R@10 : {metrics.get(f'{rev}_recall@10', 0):.4f}")
+        print(f"    mAP  : {metrics.get(f'{rev}_mAP', 0):.4f}")
 
-    log.info(
-        f"\n{'='*60}\n"
-        f"  Checkpoint : {args.checkpoint}\n"
-        f"  Split      : {args.split}  ({num_samples} samples)\n"
-        f"\n"
-        f"  {query_label} -> {target_label}\n"
-        f"    R@1  : {metrics.get(f'{fwd}_recall@1', 0):.4f}\n"
-        f"    R@5  : {metrics.get(f'{fwd}_recall@5', 0):.4f}\n"
-        f"    R@10 : {metrics.get(f'{fwd}_recall@10', 0):.4f}\n"
-        f"    mAP  : {metrics.get(f'{fwd}_mAP', 0):.4f}\n"
-        f"\n"
-        f"  {target_label} -> {query_label}\n"
-        f"    R@1  : {metrics.get(f'{rev}_recall@1', 0):.4f}\n"
-        f"    R@5  : {metrics.get(f'{rev}_recall@5', 0):.4f}\n"
-        f"    R@10 : {metrics.get(f'{rev}_recall@10', 0):.4f}\n"
-        f"    mAP  : {metrics.get(f'{rev}_mAP', 0):.4f}\n"
-        f"{'='*60}"
-    )
+    print(f"\n{'='*60}")
 
     if args.output:
         with open(args.output, "w") as f:
