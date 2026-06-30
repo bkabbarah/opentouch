@@ -104,7 +104,13 @@ def main(argv=None):
         modality_flags = _determine_modality_flags(args.task_type)
         all_mods = list(set(query_mods) | set(target_mods))
 
-    model = create_model(args.model, pretrained=args.checkpoint, precision=args.precision, device=device)
+    model = create_model(
+        args.model,
+        pretrained=args.checkpoint,
+        precision=args.precision,
+        device=device,
+        enabled_modalities=all_mods,
+    )
     model.eval()
 
     dataset = VideoTactilePoseDataset(
