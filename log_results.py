@@ -79,7 +79,7 @@ def read_tags(checkpoint_path):
     if not os.path.exists(tags_path):
         return ""
     with open(tags_path) as f:
-        return f.read().replace("\n", " | ").strip()
+        return f.read().replace("\n", " | ").strip().rstrip(" |")
 
 
 def main():
@@ -93,7 +93,6 @@ def main():
     args = parser.parse_args()
 
     auto_tags = read_tags(args.checkpoint) if args.checkpoint else ""
-    combined_notes = f"{auto_tags} | {args.notes}".strip(" |") if auto_tags else args.notes
 
     if not os.path.exists(args.results_json):
         print(f"ERROR: {args.results_json} not found")
@@ -121,7 +120,7 @@ def main():
                 writer.writerow([
                     timestamp, args.run_label, key, round(data[key] * 100, 2),
                     commit, repo, args.checkpoint, args.epoch,
-                    args.task_type, os.path.abspath(args.results_json), auto_tags, combined_notes,
+                    args.task_type, os.path.abspath(args.results_json), auto_tags, args.notes,
                 ])
                 rows_written += 1
 
