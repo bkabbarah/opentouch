@@ -284,6 +284,12 @@ def parse_args(args):
         action="store_true",
         help="If true, delete previous checkpoint after storing a new one.",
     )
+    parser.add_argument(
+        "--tags",
+        default="",
+        type=str,
+        help="Free-text experiment label written to tags.txt in the log dir.",
+    )
 
     args = parser.parse_args(args)
 
