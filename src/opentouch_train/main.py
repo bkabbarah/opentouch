@@ -5,6 +5,7 @@ import glob
 import logging
 import os
 import random
+import subprocess
 import sys
 from datetime import datetime
 
@@ -176,6 +177,12 @@ def main(args):
                 val = getattr(args, name)
                 logging.info(f"  {name}: {val}")
                 f.write(f"{name}: {val}\n")
+
+        if args.tags:
+            tags_file = os.path.join(args.logs, args.name, "tags.txt")
+            with open(tags_file, "w") as f:
+                f.write(args.tags + "\n")
+                f.write(f"git_commit: {subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()}\n")
 
     if args.distributed:
         if args.use_bn_sync:
