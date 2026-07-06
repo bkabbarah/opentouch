@@ -71,6 +71,17 @@ def find_checkpoint_meta(results_json_path):
     return {}
 
 
+def read_tags(checkpoint_path):
+    """Read tags.txt from the checkpoint's log directory if it exists."""
+    ckpt_dir = os.path.dirname(os.path.abspath(checkpoint_path))
+    log_dir = os.path.dirname(ckpt_dir)  # checkpoints/ is one level down from log dir
+    tags_path = os.path.join(log_dir, "tags.txt")
+    if not os.path.exists(tags_path):
+        return ""
+    with open(tags_path) as f:
+        return f.read().replace("\n", " | ").strip()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("results_json", help="Path to results_*.json from eval.py")
@@ -80,6 +91,9 @@ def main():
     parser.add_argument("--task-type", default="", help="Task type trained on, e.g. p2t, all")
     parser.add_argument("--notes", default="", help="Free text description of what this run is")
     args = parser.parse_args()
+
+    auto_tags = read_tags(args.checkpoint) if args.checkpoint else ""
+    combined_notes = f"{auto_tags} | {args.notes}".strip(" |") if auto_tags else args.notes
 
     if not os.path.exists(args.results_json):
         print(f"ERROR: {args.results_json} not found")
@@ -99,7 +113,7 @@ def main():
             writer.writerow([
                 "logged_at", "run_label", "direction", "mAP_pct",
                 "git_commit", "repo_path", "checkpoint", "epoch",
-                "task_type", "results_json_path", "notes",
+                "task_type", "results_json_path", "tags", "notes",
             ])
         rows_written = 0
         for key in DIRECTIONS:
@@ -107,7 +121,7 @@ def main():
                 writer.writerow([
                     timestamp, args.run_label, key, round(data[key] * 100, 2),
                     commit, repo, args.checkpoint, args.epoch,
-                    args.task_type, os.path.abspath(args.results_json), args.notes,
+                    args.task_type, os.path.abspath(args.results_json), auto_tags, combined_notes,
                 ])
                 rows_written += 1
 
