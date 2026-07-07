@@ -215,6 +215,12 @@ def parse_args(args):
     parser.add_argument(
         "--seed", type=int, default=42, help="Default random seed.",
     )
+    parser.add_argument(
+        "--split-seed",
+        default=42,
+        type=int,
+        help="Random seed for train/val/test split. Fixed independently of --seed to ensure comparable test sets across training runs.",
+    )
 
     parser.add_argument(
         "--dist-url",

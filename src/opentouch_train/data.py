@@ -312,7 +312,7 @@ def get_data(args, epoch=0):
     stride = getattr(args, 'stride', None) or seq_len
     val_ratio = getattr(args, 'val_ratio', 0.1)
     test_ratio = getattr(args, 'test_ratio', 0.1)
-    seed = getattr(args, 'seed', 42)
+    seed = getattr(args, 'split_seed', 42)
     image_size = tuple(getattr(args, 'image_size', (224, 224)))
 
     common_kwargs = dict(
