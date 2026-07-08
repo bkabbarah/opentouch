@@ -86,6 +86,13 @@ def parse_args(args):
             "Valid: v2t, p2t, v2p, vp2t, tp2v, vt2p."
         ),
     )
+    parser.add_argument(
+        "--fusion-head-type",
+        type=str,
+        choices=["linear", "nonlinear"],
+        default="linear",
+        help="Fusion head architecture for trimodal tasks (VP->T, VT->P, TP->V and reverses).",
+    )
 
     parser.add_argument(
         "--logs",

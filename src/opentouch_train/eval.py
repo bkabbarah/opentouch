@@ -63,6 +63,13 @@ def parse_args(argv=None):
     p.add_argument("--data", required=True, help="Path to preprocessed HF dataset.")
     p.add_argument("--model", default=None, help="Model config name (auto-detected from checkpoint).")
     p.add_argument("--task-type", default=None, help="Retrieval task (auto-detected from checkpoint).")
+    p.add_argument(
+        "--fusion-head-type",
+        type=str,
+        choices=["linear", "nonlinear"],
+        default="linear",
+        help="Fusion head architecture for trimodal tasks; must match the checkpoint's training config.",
+    )
     p.add_argument("--split", default="test", choices=["val", "test"], help="Dataset split.")
     p.add_argument("--batch-size", type=int, default=128)
     p.add_argument("--workers", type=int, default=4)
@@ -110,6 +117,7 @@ def main(argv=None):
         precision=args.precision,
         device=device,
         enabled_modalities=all_mods,
+        fusion_head_type=args.fusion_head_type,
     )
     model.eval()
 

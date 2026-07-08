@@ -49,6 +49,7 @@ class CrossRetrievalModel(nn.Module):
         pose_cfg: Optional[dict] = None,
         enabled_modalities: Optional[List[str]] = None,
         fusion_method: str = "concat",
+        fusion_head_type: str = "linear",
         normalize: bool = True,
         init_logit_scale: Optional[float] = None,
         init_logit_bias: Optional[float] = None,
@@ -56,6 +57,7 @@ class CrossRetrievalModel(nn.Module):
         super().__init__()
         self.embed_dim = embed_dim
         self.fusion_method = fusion_method
+        self.fusion_head_type = fusion_head_type
         self.normalize = normalize
         self.enabled_modalities: Set[str] = (
             set(enabled_modalities) if enabled_modalities is not None
@@ -102,6 +104,18 @@ class CrossRetrievalModel(nn.Module):
             self.pose = None
 
 
+    def _build_fusion_head(self) -> nn.Module:
+        if self.fusion_head_type == "linear":
+            return nn.Linear(self.embed_dim * 2, self.embed_dim)
+        elif self.fusion_head_type == "nonlinear":
+            return nn.Sequential(
+                nn.Linear(self.embed_dim * 2, self.embed_dim),
+                nn.ReLU(),
+                nn.Linear(self.embed_dim, self.embed_dim),
+            )
+        else:
+            raise ValueError(f"Unknown fusion_head_type: {self.fusion_head_type}")
+
     def _init_fusion_modules(self) -> None:
         """Create fusion projections for multi-modal queries (3+ modalities, concat only)."""
         self.tactile_visual_fusion: Optional[nn.Module] = None
@@ -113,12 +127,12 @@ class CrossRetrievalModel(nn.Module):
             logger.warning(f"Fusion '{self.fusion_method}' not supported, only 'concat' implemented.")
             return
         if {"tactile", "visual"}.issubset(self.enabled_modalities):
-            self.tactile_visual_fusion = nn.Linear(self.embed_dim * 2, self.embed_dim)
+            self.tactile_visual_fusion = self._build_fusion_head()
         if {"pose", "visual"}.issubset(self.enabled_modalities):
-            self.pose_visual_fusion = nn.Linear(self.embed_dim * 2, self.embed_dim)
+            self.pose_visual_fusion = self._build_fusion_head()
         if {"tactile", "pose"}.issubset(self.enabled_modalities):
-            self.tactile_pose_fusion = nn.Linear(self.embed_dim * 2, self.embed_dim)
-                    
+            self.tactile_pose_fusion = self._build_fusion_head()
+
     def _normalize_embedding(self, emb: torch.Tensor) -> torch.Tensor:
         return F.normalize(emb, dim=-1) if self.normalize else emb
 

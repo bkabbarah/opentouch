@@ -149,6 +149,7 @@ def main(args):
         enabled_modalities = list(set(query_mods) | set(target_mods))
     model_kwargs = {
         'enabled_modalities': enabled_modalities,
+        'fusion_head_type': args.fusion_head_type,
     }
 
     model, _, _ = create_model_and_transforms(
@@ -183,6 +184,7 @@ def main(args):
             with open(tags_file, "w") as f:
                 f.write(args.tags + "\n")
                 f.write(f"git_commit: {subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()}\n")
+                f.write(f"fusion_head_type: {args.fusion_head_type}\n")
 
     if args.distributed:
         if args.use_bn_sync:
