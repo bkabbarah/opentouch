@@ -232,7 +232,12 @@ docs/*
 .claude/
 preprocess/scratch/MANO_RIGHT.pkl
 preprocess/scratch/MANO_LEFT.pkl
+assets/MANO_RIGHT.pkl
+assets/MANO_LEFT.pkl
 final_annotations/*
 logs/*
 preprocessed_data/*
 final_annotation.zip
+assets/B_matrices.npz
+assets/*.obj
+assets/MANO_RIGHT.pkl
