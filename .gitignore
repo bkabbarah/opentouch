@@ -241,3 +241,6 @@ final_annotation.zip
 assets/B_matrices.npz
 assets/*.obj
 assets/MANO_RIGHT.pkl
+results_*.json
+eval_output.txt
+worst_queries.csv
