@@ -18,6 +18,7 @@ from opentouch import create_model, compute_retrieval_metrics, get_input_dtype
 from opentouch_train.data import (
     VideoTactilePoseDataset, collate_fn, parse_task, _determine_modality_flags,
 )
+from opentouch_train.main import _TACTILE_ENCODER_TYPE_MAP
 from opentouch_train.precision import get_autocast
 
 
@@ -44,15 +45,35 @@ def _read_checkpoint_meta(path):
         "task_type": ckpt.get("task_type"),
         "model": ckpt.get("model"),
         "epoch": ckpt.get("epoch"),
+        "tactile_encoder_type": ckpt.get("tactile_encoder_type"),
+        "tactile_b_matrices_path": ckpt.get("tactile_b_matrices_path"),
     }
 
-    if meta["task_type"] is None or meta["model"] is None:
+    if any(meta[k] is None for k in ("task_type", "model", "tactile_encoder_type")):
         params_file = Path(path).resolve().parent.parent / "params.txt"
         params = _read_params_file(params_file)
         if meta["task_type"] is None:
             meta["task_type"] = params.get("task_type")
         if meta["model"] is None:
             meta["model"] = params.get("model")
+        if meta["tactile_encoder_type"] is None:
+            meta["tactile_encoder_type"] = params.get("tactile_encoder_type")
+        if meta["tactile_b_matrices_path"] is None:
+            meta["tactile_b_matrices_path"] = params.get("tactile_b_matrices_path")
+
+    if meta["tactile_encoder_type"] is None:
+        # Predates the tactile_encoder_type field entirely (checkpoint and
+        # params.txt both lack it) -- every such checkpoint was trained
+        # before contact encoders existed, so cnn_gru is the correct
+        # default, not a guess. Logged because it changes which encoder
+        # class create_model() builds.
+        log.warning(
+            f"Checkpoint '{path}' has no tactile_encoder_type in its metadata "
+            "(predates this field) -- defaulting to 'cnn_gru'."
+        )
+        meta["tactile_encoder_type"] = "cnn_gru"
+    if meta["tactile_b_matrices_path"] in (None, "None"):
+        meta["tactile_b_matrices_path"] = None
 
     return meta
 
@@ -63,6 +84,18 @@ def parse_args(argv=None):
     p.add_argument("--data", required=True, help="Path to preprocessed HF dataset.")
     p.add_argument("--model", default=None, help="Model config name (auto-detected from checkpoint).")
     p.add_argument("--task-type", default=None, help="Retrieval task (auto-detected from checkpoint).")
+    p.add_argument(
+        "--tactile-encoder-type",
+        default=None,
+        choices=["cnn_gru", "contact_skinning", "contact_region", "contact_plain"],
+        help="Tactile encoder architecture (auto-detected from checkpoint).",
+    )
+    p.add_argument(
+        "--tactile-b-matrices-path",
+        default=None,
+        help="Path to B_matrices.npz for contact_skinning/contact_region "
+             "(auto-detected from checkpoint; defaults to assets/B_matrices.npz).",
+    )
     p.add_argument(
         "--fusion-head-type",
         type=str,
@@ -96,8 +129,15 @@ def main(argv=None):
             )
     if args.model is None:
         args.model = meta.get("model") or "OpenTouch-DINOv3-B16-Retrieval"
+    if args.tactile_encoder_type is None:
+        args.tactile_encoder_type = meta["tactile_encoder_type"]
+    if args.tactile_b_matrices_path is None:
+        args.tactile_b_matrices_path = meta["tactile_b_matrices_path"]
 
-    log.info(f"Model: {args.model}  Task: {args.task_type}  Epoch: {meta.get('epoch', '?')}")
+    log.info(
+        f"Model: {args.model}  Task: {args.task_type}  Epoch: {meta.get('epoch', '?')}  "
+        f"Tactile encoder: {args.tactile_encoder_type}"
+    )
 
     device = torch.device(args.device)
     from opentouch_train.train import ALL_TASKS
@@ -111,6 +151,17 @@ def main(argv=None):
         modality_flags = _determine_modality_flags(args.task_type)
         all_mods = list(set(query_mods) | set(target_mods))
 
+    tactile_cfg = {"encoder_type": _TACTILE_ENCODER_TYPE_MAP[args.tactile_encoder_type]}
+    if args.tactile_b_matrices_path:
+        tactile_cfg["b_matrices_path"] = args.tactile_b_matrices_path
+
+    # create_model -> load_checkpoint defaults to strict=True: if
+    # tactile_cfg builds the wrong encoder class for this checkpoint (e.g.
+    # cnn_gru's CNNetEmbedding when the checkpoint holds a
+    # TactileContactEncoder's state_dict), load_state_dict raises on
+    # missing/unexpected keys instead of silently leaving those weights at
+    # random init. Getting tactile_encoder_type right above is what makes
+    # that check meaningful rather than a mismatch nobody asked for.
     model = create_model(
         args.model,
         pretrained=args.checkpoint,
@@ -118,6 +169,7 @@ def main(argv=None):
         device=device,
         enabled_modalities=all_mods,
         fusion_head_type=args.fusion_head_type,
+        tactile_cfg=tactile_cfg,
     )
     model.eval()
 

@@ -381,6 +381,8 @@ def main(args):
                 "optimizer": optimizer.state_dict(),
                 "task_type": args.task_type,
                 "model": args.model,
+                "tactile_encoder_type": args.tactile_encoder_type,
+                "tactile_b_matrices_path": args.tactile_b_matrices_path,
             }
             if scaler is not None:
                 checkpoint_dict["scaler"] = scaler.state_dict()

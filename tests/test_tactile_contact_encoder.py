@@ -12,12 +12,14 @@ import pytest
 import torch
 
 from opentouch.contact_structure import (
+    LAYOUT_HIGHRES,
     NUM_KEYPOINTS,
     NUM_TAXELS,
     build_taxel_index,
 )
 from opentouch.tactile_contact_encoder import (
     TactileContactEncoder,
+    TaxelTokenizer,
     _region_bias_to_kp21,
     count_parameters,
 )
@@ -84,6 +86,51 @@ def test_gather_indices_match_taxel_order():
         r, c = (int(x) for x in key.split("-"))
         assert int(model.taxel_rows[i]) == r
         assert int(model.taxel_cols[i]) == c
+
+
+# ---------------------------------------------------------------------------
+# Temporal aggregator must be order-SENSITIVE (regression test for the
+# mean-pool bug: T->P mAP was 5.18/6.46/7.04 vs cnn_gru's 45.46 and the
+# published 14.33 baseline, because mean-pooling over T cannot distinguish a
+# grasp from a release -- exactly the direction-in-time signal the
+# tactile-predicts-pose-transitions claim depends on).
+# ---------------------------------------------------------------------------
+
+def test_temporal_aggregator_is_order_sensitive():
+    """Reversing a taxel's pressure trace over T must change its token. A
+    permutation-invariant aggregator (e.g. the old Conv1d + mean-pool) would
+    produce an IDENTICAL token here -- this is the exact bug this fix
+    addresses, caught directly rather than inferred from downstream mAP."""
+    torch.manual_seed(3)
+    taxel_order = build_taxel_index()
+    tokenizer = TaxelTokenizer(d_model=32, taxel_order=taxel_order, layout_path=LAYOUT_HIGHRES)
+    tokenizer.eval()
+
+    pressure = torch.rand(2, _T, NUM_TAXELS)
+    pressure_reversed = pressure.flip(dims=[1])
+
+    with torch.no_grad():
+        tokens = tokenizer(pressure)
+        tokens_reversed = tokenizer(pressure_reversed)
+
+    assert not torch.allclose(tokens, tokens_reversed, atol=1e-4)
+
+
+def test_full_encoder_output_is_order_sensitive():
+    """End-to-end version of the same check: reversing the whole (B,T,1,16,16)
+    tactile window must change the encoder's output embedding."""
+    torch.manual_seed(4)
+    model = TactileContactEncoder(mode="plain")
+    model.eval()
+
+    x = torch.rand(2, _T, 1, 16, 16)
+    x_reversed = x.flip(dims=[1])
+
+    with torch.no_grad():
+        out = model(x)
+        out_reversed = model(x_reversed)
+
+    assert not torch.allclose(out, out_reversed, atol=1e-4)
 
 
 # ---------------------------------------------------------------------------

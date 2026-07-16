@@ -10,13 +10,21 @@ critical baseline) -- as one class with a mode switch, not three divergent
 copies.
 
 Architecture, all modes:
-  169 taxel tokens (pressure trace over T frames + learned 2D layout
-  position embedding) are cross-attended by NUM_KEYPOINTS=21 learned joint
-  queries. "region" mode uses the same 21 queries as "skinning" (not 6) so
-  that architecture and parameter count stay matched across modes and the
-  only thing an ablation can pick up is the presence/granularity of the
-  anatomical bias -- see _region_bias_to_kp21() for how the (6,169) region
-  bias is broadcast onto the 21 query rows.
+  169 taxel tokens (per-taxel pressure trace through a shared bidirectional
+  GRU + learned 2D layout position embedding, see TaxelTokenizer) are
+  cross-attended by NUM_KEYPOINTS=21 learned joint queries. "region" mode
+  uses the same 21 queries as "skinning" (not 6) so that architecture and
+  parameter count stay matched across modes and the only thing an ablation
+  can pick up is the presence/granularity of the anatomical bias -- see
+  _region_bias_to_kp21() for how the (6,169) region bias is broadcast onto
+  the 21 query rows.
+
+  Default d_model=128 (up from an earlier d_model=64): at d_model=64 the
+  three contact modes sit at 30,685 params against cnn_gru's 508,160, a 16x
+  gap that confounds any contact-vs-cnn_gru comparison with a capacity
+  difference. d_model=128 lands at 527,901 -- within ~4% of cnn_gru, well
+  inside the requested 2x band -- while leaving skinning/region/plain
+  exactly matched to each other (see the parity assert in main()).
 
 Parameter parity: every mode registers the same learnable (21,169)
 anat_residual (init zeros). "skinning"/"region" additionally add a fixed,
@@ -91,19 +99,35 @@ def _region_bias_to_kp21(bias_region: np.ndarray) -> np.ndarray:
 class TaxelTokenizer(nn.Module):
     """169 taxel tokens = per-taxel pressure trace + learned 2D position embedding.
 
-    Temporal handling of the T-length per-taxel pressure trace: a single
-    Conv1d (shared across all 169 taxels, applied independently per taxel)
-    followed by mean-pooling over time. A taxel's trace is a local pressure
-    signal, not a trajectory needing cross-timestep memory the way pose
-    kinematics does, so a lightweight shared 1D conv (captures onset/
-    release shape via its receptive field) is preferred over a per-taxel
-    GRU/Transformer: it adds only kernel_size*d_model parameters total
-    (shared, not one recurrent unit per taxel), doesn't hardcode the window
-    length T=20 into a weight shape (unlike a Linear(T, d_model)), and the
-    paper's own ablations show deep backbones underperform on this input.
+    Temporal handling of the T-length per-taxel pressure trace: a shared
+    (across all 169 taxels) bidirectional GRU, matching the temporal
+    aggregator already validated on this exact data and problem in
+    src/opentouch/pose_encoder.py, where replacing average-pooling with a
+    biGRU took T->P mAP from 13.43 to 45.46.
+
+    An earlier version of this tokenizer used a Conv1d + mean-pool over T.
+    Mean-pooling is permutation-invariant in time: after the conv's local
+    receptive field, the pooled aggregate cannot distinguish a grasp
+    (rising pressure) from a release (falling pressure) -- exactly the
+    directional signal the tactile-predicts-pose-transitions claim rests
+    on. That version trained (train loss 3.37 vs ln(256)=5.55 chance) but
+    generalized worse than chance on held-out clips (val loss 6.33-6.58 vs
+    ln(128)=4.85), and T->P mAP (plain 5.18 / region 6.46 / skinning 7.04)
+    was far below both the cnn_gru baseline (45.46) and the published
+    OpenTouch baseline (14.33) -- consistent with a representation that
+    fits train but throws away the time-direction information val/test
+    clips need. A GRU is order-sensitive by construction: reversing a trace
+    changes its hidden state (see
+    test_temporal_aggregator_is_order_sensitive in the test suite).
     """
 
-    def __init__(self, d_model: int, taxel_order: list[str], layout_path: Path):
+    def __init__(
+        self,
+        d_model: int,
+        taxel_order: list[str],
+        layout_path: Path,
+        gru_hidden: Optional[int] = None,
+    ):
         super().__init__()
         assert len(taxel_order) == NUM_TAXELS, (
             f"expected {NUM_TAXELS} taxel tokens, got {len(taxel_order)}"
@@ -111,7 +135,15 @@ class TaxelTokenizer(nn.Module):
         self.register_buffer(
             "taxel_xy", _load_taxel_xy(taxel_order, layout_path), persistent=False
         )
-        self.temporal_conv = nn.Conv1d(1, d_model, kernel_size=5, padding=2)
+        # Ties the per-taxel GRU's hidden width to d_model rather than
+        # exposing a third knob -- emb_dim/d_model are the two dials this
+        # module promises to expose.
+        self.gru_hidden = gru_hidden if gru_hidden is not None else d_model
+        self.temporal_gru = nn.GRU(
+            input_size=1, hidden_size=self.gru_hidden, num_layers=2,
+            bidirectional=True, batch_first=True,
+        )
+        self.temporal_proj = nn.Linear(2 * self.gru_hidden, d_model)
         self.pos_mlp = nn.Sequential(
             nn.Linear(2, d_model), nn.GELU(), nn.Linear(d_model, d_model)
         )
@@ -121,9 +153,11 @@ class TaxelTokenizer(nn.Module):
         """pressure_per_taxel: (B,T,169) -> tokens (B,169,d_model)."""
         b, t, n = pressure_per_taxel.shape
         assert n == NUM_TAXELS
-        x = pressure_per_taxel.permute(0, 2, 1).reshape(b * n, 1, t)  # (B*169,1,T)
-        feat = self.temporal_conv(x).mean(dim=-1)  # (B*169,d_model)
-        feat = feat.view(b, n, -1)
+        x = pressure_per_taxel.permute(0, 2, 1).reshape(b * n, t, 1)  # (B*169,T,1)
+        self.temporal_gru.flatten_parameters()
+        _, h_n = self.temporal_gru(x)  # (num_layers*2, B*169, gru_hidden)
+        combined = torch.cat([h_n[-2], h_n[-1]], dim=-1)  # fwd-last + bwd-last of layer 2
+        feat = self.temporal_proj(combined).view(b, n, -1)  # (B,169,d_model)
         pos = self.pos_mlp(self.taxel_xy)[None, :, :]  # (1,169,d_model)
         return self.norm(feat + pos)
 
@@ -139,7 +173,7 @@ class TactileContactEncoder(nn.Module):
         self,
         emb_dim: int = 64,
         mode: str = "skinning",
-        d_model: int = 64,
+        d_model: int = 128,
         num_heads: int = 4,
         b_matrices_path: Union[str, Path] = B_MATRICES_PATH,
         layout_path: Union[str, Path] = LAYOUT_HIGHRES,
@@ -255,7 +289,7 @@ def count_parameters(module: nn.Module) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--emb-dim", type=int, default=64)
-    ap.add_argument("--d-model", type=int, default=64)
+    ap.add_argument("--d-model", type=int, default=128)
     args = ap.parse_args()
 
     from .tactile_encoder import CNNetEmbedding
