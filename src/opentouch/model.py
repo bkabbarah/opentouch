@@ -10,9 +10,17 @@ from torch import nn
 
 from .visual_encoder import DINOv3Encoder, ResNetEncoder
 from .tactile_encoder import CNNetEmbedding
+from .tactile_contact_encoder import TactileContactEncoder
 from .pose_encoder import PoseEncoder
 
 logger = logging.getLogger(__name__)
+
+# encoder_type (tactile_cfg) -> TactileContactEncoder mode
+_CONTACT_TACTILE_MODES = {
+    "contact_skinning": "skinning",
+    "contact_region": "region",
+    "contact_plain": "plain",
+}
 
 
 def get_cast_dtype(precision: str):
@@ -92,6 +100,12 @@ class CrossRetrievalModel(nn.Module):
             encoder_type = tactile_cfg.pop("encoder_type", "cnnet")
             if encoder_type == "cnnet":
                 self.tactile = CNNetEmbedding(emb_dim=self.embed_dim, **tactile_cfg)
+            elif encoder_type in _CONTACT_TACTILE_MODES:
+                self.tactile = TactileContactEncoder(
+                    emb_dim=self.embed_dim,
+                    mode=_CONTACT_TACTILE_MODES[encoder_type],
+                    **tactile_cfg,
+                )
             else:
                 raise ValueError("Invalid model configuration.")
         else:

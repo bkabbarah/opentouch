@@ -30,6 +30,16 @@ from opentouch_train.train import train_one_epoch, evaluate
 
 LATEST_CHECKPOINT_NAME = "epoch_latest.pt"
 
+# --tactile-encoder-type CLI value -> tactile_cfg["encoder_type"] consumed by
+# CrossRetrievalModel._init_encoders. "cnn_gru" maps to the pre-existing
+# "cnnet" key so the default flag value changes nothing about current runs.
+_TACTILE_ENCODER_TYPE_MAP = {
+    "cnn_gru": "cnnet",
+    "contact_skinning": "contact_skinning",
+    "contact_region": "contact_region",
+    "contact_plain": "contact_plain",
+}
+
 
 def random_seed(seed=42, rank=0):
     torch.manual_seed(seed + rank)
@@ -147,9 +157,13 @@ def main(args):
         from opentouch_train.data import parse_task
         query_mods, target_mods = parse_task(args.task_type)
         enabled_modalities = list(set(query_mods) | set(target_mods))
+    tactile_cfg = {'encoder_type': _TACTILE_ENCODER_TYPE_MAP[args.tactile_encoder_type]}
+    if args.tactile_b_matrices_path:
+        tactile_cfg['b_matrices_path'] = args.tactile_b_matrices_path
     model_kwargs = {
         'enabled_modalities': enabled_modalities,
         'fusion_head_type': args.fusion_head_type,
+        'tactile_cfg': tactile_cfg,
     }
 
     model, _, _ = create_model_and_transforms(
@@ -164,9 +178,14 @@ def main(args):
     random_seed(args.seed, args.rank)
 
     if args.tactile_pretrained:
-            pretrained_weights = torch.load(args.tactile_pretrained, map_location=device)
-            model.tactile.cnn.load_state_dict(pretrained_weights)
-            logging.info(f"Loaded pretrained tactile CNN weights from {args.tactile_pretrained}")
+        if args.tactile_encoder_type != "cnn_gru":
+            raise ValueError(
+                "--tactile-pretrained loads weights into CNNetEmbedding.cnn and only "
+                f"applies to --tactile-encoder-type cnn_gru, got {args.tactile_encoder_type!r}."
+            )
+        pretrained_weights = torch.load(args.tactile_pretrained, map_location=device)
+        model.tactile.cnn.load_state_dict(pretrained_weights)
+        logging.info(f"Loaded pretrained tactile CNN weights from {args.tactile_pretrained}")
 
     if is_master(args):
         logging.info("Model:")

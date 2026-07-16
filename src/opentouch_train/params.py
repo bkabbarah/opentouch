@@ -69,7 +69,33 @@ def parse_args(args):
         "--tactile-pretrained",
         default='',
         type=str,
-        help="Path to pretrained tactile CNN encoder weights (.pt file).",
+        help="Path to pretrained tactile CNN encoder weights (.pt file). "
+             "Only applies to --tactile-encoder-type cnn_gru.",
+    )
+    parser.add_argument(
+        "--tactile-encoder-type",
+        type=str,
+        choices=["cnn_gru", "contact_skinning", "contact_region", "contact_plain"],
+        default="cnn_gru",
+        help=(
+            "Tactile encoder architecture. 'cnn_gru' is the original CNN+biGRU "
+            "baseline (default, unchanged behavior). The 'contact_*' variants are "
+            "taxel-token cross-attention encoders over the 169 valid taxels: "
+            "'contact_skinning' uses the 21-joint MANO-skinning bias, "
+            "'contact_region' uses the 6-region bias broadcast to the same 21 "
+            "query slots, and 'contact_plain' has no anatomical bias at all "
+            "(the critical baseline that isolates the effect of the structure)."
+        ),
+    )
+    parser.add_argument(
+        "--tactile-b-matrices-path",
+        type=str,
+        default=None,
+        help=(
+            "Path to B_matrices.npz (taxel-to-joint bias) for "
+            "--tactile-encoder-type contact_skinning/contact_region. "
+            "Defaults to assets/B_matrices.npz."
+        ),
     )
     parser.add_argument(
         "--cache-dir",
