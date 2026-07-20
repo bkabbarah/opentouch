@@ -356,6 +356,48 @@ def test_shuffle_tactile_parameter_count_exactly_equals_tactile_pose():
 
 
 # ---------------------------------------------------------------------------
+# __getitem__ must be numerically identical to the old
+# base_dataset[window_idx]-per-access implementation it replaced (the
+# dataloader-bottleneck fix precomputes pose/tactile once in __init__
+# instead of rebuilding the full window on every access).
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("horizon_k", [1, 2, 4, 8])
+@pytest.mark.parametrize("shuffle_tactile", [False, True])
+def test_getitem_matches_reference_base_dataset_path(horizon_k, shuffle_tactile):
+    n_windows = 6
+    base, landmarks_per_window, tactile_per_window = _make_multi_window_base_dataset(
+        n_windows=n_windows, sequence_length=20,
+    )
+    ds = PoseTransitionDataset(
+        base, horizon_k=horizon_k, shuffle_tactile=shuffle_tactile, shuffle_seed=3,
+    )
+
+    for window_idx in range(n_windows):
+        for t in range(ds.valid_t_per_window):
+            idx = window_idx * ds.valid_t_per_window + t
+            sample = ds[idx]
+
+            # Reference computed the OLD way: reload the full window via
+            # base_dataset[window_idx] on every access and slice t / t+k
+            # out of it directly, rather than reading the precomputed tensor.
+            ref_window = base[window_idx]
+            ref_landmarks = ref_window["hand_landmarks"].squeeze(1)
+            ref_pose_t = ref_landmarks[t]
+            ref_world_delta = ref_landmarks[t + horizon_k] - ref_pose_t
+
+            torch.testing.assert_close(sample["pose_t"], ref_pose_t)
+            torch.testing.assert_close(sample["world_delta"], ref_world_delta)
+
+            if shuffle_tactile:
+                shuffled_idx = int(ds.tactile_window_permutation[window_idx])
+                ref_tactile = base[shuffled_idx]["tactile_pressure"]
+            else:
+                ref_tactile = ref_window["tactile_pressure"]
+            torch.testing.assert_close(sample["tactile_pressure"], ref_tactile)
+
+
+# ---------------------------------------------------------------------------
 # compute_motion_threshold: per-k, from articulation displacement
 # ---------------------------------------------------------------------------
 

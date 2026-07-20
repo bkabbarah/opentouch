@@ -66,6 +66,48 @@ def _make_derangement(n: int, seed: int) -> np.ndarray:
     raise RuntimeError(f"failed to construct a derangement of {n} elements after 1000 attempts")
 
 
+def _materialize_pose_and_tactile(
+    base_dataset: VideoTactilePoseDataset, include_tactile: bool,
+):
+    """Iterate base_dataset's windows ONCE and pull every window's
+    hand_landmarks (and, if include_tactile, tactile_pressure) into a
+    single contiguous in-memory tensor indexed by window_idx.
+
+    PoseTransitionDataset.__getitem__ then only ever indexes into these
+    tensors -- it never calls base_dataset again -- which is what removes
+    the ~19x-per-epoch full-window reconstruction (restacking HF rows,
+    building tensors) base_dataset[window_idx] used to trigger on every
+    single (window, t) access. Pose is small enough to hold whole (roughly
+    13k windows x 20 x 21 x 3 x 4 bytes ~= 130MB for a train split);
+    tactile is the same order of magnitude. RGB is never materialized here
+    -- base_dataset must be built with include_visual=False so no image
+    decode/transform work happens even during this one-time pass.
+    """
+    n_windows = len(base_dataset)
+    first = base_dataset[0]
+    seq_len, _, n_keypoints, coord_dim = first["hand_landmarks"].shape
+    pose = torch.empty(n_windows, seq_len, n_keypoints, coord_dim, dtype=torch.float32)
+    pose[0] = first["hand_landmarks"].squeeze(1)
+
+    tactile: Optional[torch.Tensor] = None
+    if include_tactile:
+        tactile = torch.empty((n_windows, *first["tactile_pressure"].shape), dtype=torch.float32)
+        tactile[0] = first["tactile_pressure"]
+
+    scenes = [first["scene"]] * n_windows
+    clip_ids = [first["clip_id"]] * n_windows
+
+    for window_idx in range(1, n_windows):
+        window = base_dataset[window_idx]
+        pose[window_idx] = window["hand_landmarks"].squeeze(1)
+        if include_tactile:
+            tactile[window_idx] = window["tactile_pressure"]
+        scenes[window_idx] = window["scene"]
+        clip_ids[window_idx] = window["clip_id"]
+
+    return pose, tactile, scenes, clip_ids
+
+
 class PoseTransitionDataset(Dataset):
     """Wraps a VideoTactilePoseDataset and enumerates every valid (window, t)
     pair for a fixed horizon k: t ranges over [0, sequence_length - 1 - k]
@@ -107,24 +149,28 @@ class PoseTransitionDataset(Dataset):
         if shuffle_tactile:
             self.tactile_window_permutation = _make_derangement(len(base_dataset), shuffle_seed)
 
+        # Materialized ONCE here: __getitem__ below never touches
+        # base_dataset again (see _materialize_pose_and_tactile's docstring
+        # for why this is the actual bottleneck fix).
+        self._pose, self._tactile, self._scenes, self._clip_ids = _materialize_pose_and_tactile(
+            base_dataset, self.include_tactile,
+        )
+
     def __len__(self) -> int:
         return len(self.base_dataset) * self.valid_t_per_window
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         window_idx, t = divmod(idx, self.valid_t_per_window)
-        window = self.base_dataset[window_idx]
 
-        # (T,1,21,3) -> (T,21,3), see data.py's load_hand_landmarks
-        landmarks = window["hand_landmarks"].squeeze(1)
-        pose_t = landmarks[t]
-        pose_future = landmarks[t + self.horizon_k]
+        pose_t = self._pose[window_idx, t]
+        pose_future = self._pose[window_idx, t + self.horizon_k]
         world_delta = pose_future - pose_t
 
         sample: Dict[str, Any] = {
             "pose_t": pose_t,
             "world_delta": world_delta,
-            "scene": window["scene"],
-            "clip_id": window["clip_id"],
+            "scene": self._scenes[window_idx],
+            "clip_id": self._clip_ids[window_idx],
             "t": t,
             "horizon_k": self.horizon_k,
         }
@@ -135,10 +181,10 @@ class PoseTransitionDataset(Dataset):
                 assert shuffled_idx != window_idx, (
                     "derangement invariant violated: a window was paired with its own tactile"
                 )
-                tactile_source = self.base_dataset[shuffled_idx]
+                tactile_window_idx = shuffled_idx
             else:
-                tactile_source = window
-            sample["tactile_pressure"] = tactile_source["tactile_pressure"]
+                tactile_window_idx = window_idx
+            sample["tactile_pressure"] = self._tactile[tactile_window_idx]
         return sample
 
 
@@ -148,25 +194,22 @@ def compute_motion_threshold(dataset: PoseTransitionDataset, percentile: float =
     which is ~76% wrist/arm translation at this dataset's scale -- see
     opentouch.pose_regression's module docstring) over `dataset`'s split.
 
-    Computed by loading each base window ONCE and slicing out every valid
-    t in one vectorized delta (landmarks[k:] - landmarks[:-k]), rather than
-    calling dataset[i] in a loop -- that would reload the same base window
-    valid_t_per_window times over. Intended to be called ONCE (by
-    regression_main.py, before the epoch loop) and the result cached in
-    args.motion_threshold / checkpoint metadata, not recomputed per epoch.
+    Reuses PoseTransitionDataset's already-materialized pose tensor
+    (dataset._pose, built once in __init__ by _materialize_pose_and_tactile)
+    and computes every valid t's delta in one vectorized shot
+    (landmarks[:, k:] - landmarks[:, :-k]), rather than calling dataset[i]
+    in a loop or re-iterating base_dataset -- both of which would redo work
+    __init__ already did. Intended to be called ONCE (by regression_main.py,
+    before the epoch loop) and the result cached in args.motion_threshold /
+    checkpoint metadata, not recomputed per epoch.
     """
-    base = dataset.base_dataset
     horizon_k = dataset.horizon_k
-    all_displacements = []
-    for window_idx in range(len(base)):
-        window = base[window_idx]
-        landmarks = window["hand_landmarks"].squeeze(1)  # (T,21,3)
-        world_delta = landmarks[horizon_k:] - landmarks[:-horizon_k]  # (T-k,21,3), every valid t
-        _, articulation_delta = decompose_world_delta(world_delta)
-        all_displacements.append(fingertip_displacement(articulation_delta))  # (T-k,)
-
-    all_displacements_t = torch.cat(all_displacements)
-    return torch.quantile(all_displacements_t, percentile / 100.0).item()
+    landmarks = dataset._pose  # (N_windows, T, 21, 3)
+    world_delta = landmarks[:, horizon_k:] - landmarks[:, :-horizon_k]  # (N_windows, T-k, 21, 3)
+    world_delta = world_delta.reshape(-1, world_delta.shape[-2], world_delta.shape[-1])
+    _, articulation_delta = decompose_world_delta(world_delta)
+    all_displacements = fingertip_displacement(articulation_delta)
+    return torch.quantile(all_displacements, percentile / 100.0).item()
 
 
 def regression_collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
