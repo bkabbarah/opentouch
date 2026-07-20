@@ -43,7 +43,7 @@ def parse_regression_args(args):
         help="Checkpoint/logging label only -- not a retrieval TASK_ALIASES key.",
     )
     parser.add_argument(
-        "--horizon-k", type=int, required=True, choices=[1, 2, 4, 8],
+        "--horizon-k", type=int, required=True, choices=[1, 2, 4, 8, 16],
         help="Predict the pose delta this many frames ahead (33-266ms at 30Hz). "
              "Must be < --sequence-length.",
     )
