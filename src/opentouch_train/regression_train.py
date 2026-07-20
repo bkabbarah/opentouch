@@ -223,6 +223,15 @@ def evaluate_regression(model, data, epoch, args):
     metrics["val_loss"] = trained_space["all_mse_all_joints"]
     metrics["epoch"] = epoch
 
+    # The residual-fusion gate (PoseTransitionRegressor.gate) is None in
+    # pose-only mode and a learnable scalar, zero-initialized, in
+    # tactile+pose mode. Logged every eval unconditionally -- a gate that
+    # stays ~0 is itself the finding (tactile carries no transition signal
+    # beyond what pose already implies), not a failure to be hidden.
+    if use_tactile:
+        gate_value = eval_model.gate.detach().float().mean().item()
+        metrics["gate_value"] = gate_value
+
     logging.info(
         f"Eval Epoch: {epoch}  target_mode={args.target_mode}  val_loss({args.target_mode}): "
         f"{metrics['val_loss']:.6f}  wrist_translation_mse: {dual_metrics['wrist_translation_mse']:.6f}\n"
@@ -238,6 +247,8 @@ def evaluate_regression(model, data, epoch, args):
         f"{int(dual_metrics['articulation'].get('num_moving_samples', 0))}, "
         f"threshold={args.motion_threshold})"
     )
+    if use_tactile:
+        logging.info(f"  residual-fusion gate: {metrics['gate_value']:.6f}")
 
     if args.save_logs:
         with open(os.path.join(args.checkpoint_path, "results.jsonl"), "a+") as f:

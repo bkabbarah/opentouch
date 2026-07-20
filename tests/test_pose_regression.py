@@ -21,6 +21,7 @@ from opentouch.pose_regression import (
     COORD_DIM,
     FINGERTIP_COLUMNS,
     NUM_KEYPOINTS,
+    POSE_DIM,
     WRIST_INDEX,
     PoseTransitionRegressor,
     decompose_world_delta,
@@ -86,6 +87,65 @@ def test_tactile_model_forward_asserts_if_tactile_missing():
     pose_t = torch.randn(_BATCH, NUM_KEYPOINTS, COORD_DIM)
     with pytest.raises(AssertionError):
         model(pose_t, None)
+
+
+def test_tactile_model_has_gate_pose_only_does_not():
+    """The residual-fusion gate is the mechanism that makes tactile
+    "earn its way in" instead of overwhelming the pose signal by
+    concatenation -- it must exist only in tactile+pose mode."""
+    tactile_model = PoseTransitionRegressor(use_tactile=True)
+    pose_only_model = PoseTransitionRegressor(use_tactile=False)
+    assert tactile_model.gate is not None
+    assert pose_only_model.gate is None
+    assert pose_only_model.tactile_head is None
+
+
+def test_gate_is_zero_initialized():
+    """Zero-init is what makes use_tactile=True identical to the pose-only
+    baseline at init -- tactile must earn its contribution via gradient
+    descent, never start already mixed in."""
+    model = PoseTransitionRegressor(use_tactile=True)
+    assert torch.allclose(model.gate, torch.zeros_like(model.gate))
+
+
+def test_residual_gate_zero_matches_pose_only_head():
+    """The core numerical-identity guarantee of the residual design: with
+    the gate forced to 0, tactile+pose output must EXACTLY equal the
+    pose-only path's output for the same pose input -- regardless of what
+    the tactile correction head computes, since it is multiplied by a zero
+    gate. This is what makes a null result (gate stays ~0 after training)
+    trustworthy evidence, rather than a fusion artifact."""
+    torch.manual_seed(123)
+    tactile_model = PoseTransitionRegressor(use_tactile=True)
+    pose_only_model = PoseTransitionRegressor(use_tactile=False)
+    # Align the pose path exactly: same architecture (asserted below), copy
+    # weights so both compute the identical function of pose_flat.
+    assert str(tactile_model.head) == str(pose_only_model.head)
+    pose_only_model.head.load_state_dict(tactile_model.head.state_dict())
+    tactile_model.gate.data.zero_()
+    tactile_model.eval()
+    pose_only_model.eval()
+
+    pose_t = torch.randn(_BATCH, NUM_KEYPOINTS, COORD_DIM)
+    tactile = torch.rand(_BATCH, _T, 1, 16, 16)
+
+    out_tactile = tactile_model(pose_t, tactile)
+    out_pose_only = pose_only_model(pose_t, None)
+    torch.testing.assert_close(out_tactile, out_pose_only)
+
+
+def test_tactile_head_has_no_shared_batchnorm_with_pose_head():
+    """The concat-fusion bug came from ONE BatchNorm1d normalizing pose and
+    tactile features jointly, coupling their scales. The residual design
+    must give each branch its own BatchNorm over only its own inputs."""
+    model = PoseTransitionRegressor(use_tactile=True, tactile_emb_dim=64)
+    pose_bn = model.head[0]
+    tactile_bn = model.tactile_head[0]
+    assert isinstance(pose_bn, torch.nn.BatchNorm1d)
+    assert isinstance(tactile_bn, torch.nn.BatchNorm1d)
+    assert pose_bn is not tactile_bn
+    assert pose_bn.num_features == POSE_DIM
+    assert tactile_bn.num_features == POSE_DIM + 64
 
 
 def test_pose_only_has_fewer_parameters_than_tactile_model():

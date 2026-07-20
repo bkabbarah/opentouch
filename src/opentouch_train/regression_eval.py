@@ -214,6 +214,10 @@ def main(argv=None):
     print(f"  Horizon k      : {horizon_k}")
     print(f"  Split          : {args.split}  ({int(dual_metrics['world']['num_samples'])} samples)")
     print(f"  Wrist translation MSE : {dual_metrics['wrist_translation_mse']:.6f}")
+    if not pose_only:
+        gate_value = model.gate.detach().float().mean().item()
+        print(f"  Residual-fusion gate  : {gate_value:.6f}  (trains away from 0 only if tactile helps)")
+        dual_metrics["gate_value"] = gate_value
     print(f"{'='*60}")
 
     for space in ("world", "articulation"):
