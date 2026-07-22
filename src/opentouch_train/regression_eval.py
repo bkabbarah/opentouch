@@ -75,9 +75,15 @@ def _read_checkpoint_meta(path) -> dict:
         "split_seed": ckpt.get("split_seed"),
         "git_commit": ckpt.get("git_commit"),
         "git_dirty": ckpt.get("git_dirty"),
+        "causal": ckpt.get("causal"),
+        "causal_window": ckpt.get("causal_window"),
+        "min_history": ckpt.get("min_history"),
     }
 
-    if any(meta[k] is None for k in _REQUIRED_META_FIELDS + ("git_commit", "git_dirty")):
+    if any(
+        meta[k] is None for k in
+        _REQUIRED_META_FIELDS + ("git_commit", "git_dirty", "causal", "causal_window")
+    ):
         params_file = Path(path).resolve().parent.parent / "params.txt"
         params = _read_params_file(params_file)
 
@@ -97,6 +103,29 @@ def _read_checkpoint_meta(path) -> dict:
         _coerce("split_seed", int)
         _coerce("git_commit", str)
         _coerce("git_dirty", lambda v: v == "True")
+        _coerce("causal", lambda v: v == "True")
+        _coerce("causal_window", int)
+        _coerce("min_history", lambda v: None if v == "None" else int(v))
+
+    if meta["causal"] is None:
+        # Predates the causal-tactile-window fix entirely (checkpoint and
+        # params.txt both lack it) -- every such checkpoint was ACTUALLY
+        # trained on the leaky pre-fix path (full T-window fed regardless of
+        # t), so causal=False is the correct reconstruction, not a guess --
+        # same "predates this field" convention as opentouch_train.eval's
+        # tactile_encoder_type default.
+        log.warning(
+            f"Checkpoint '{path}' has no 'causal' field (predates the causal-tactile-window "
+            "fix) -- defaulting to causal=False, matching what this checkpoint was ACTUALLY "
+            "trained with."
+        )
+        meta["causal"] = False
+    if meta["causal"] and meta["causal_window"] is None:
+        log.warning(
+            f"Checkpoint '{path}' has causal=True but no 'causal_window' -- defaulting to "
+            f"sequence_length={meta['sequence_length']} (the causal fix's own default)."
+        )
+        meta["causal_window"] = meta["sequence_length"]
 
     missing = [k for k in _REQUIRED_META_FIELDS if meta[k] is None]
     if missing:
@@ -128,6 +157,18 @@ def parse_args(argv=None):
         help="Override (auto-detected from checkpoint). Must match training exactly "
              "for --shuffle-tactile checkpoints, or the pose/tactile pairing changes.",
     )
+    p.add_argument(
+        "--causal", dest="causal", action="store_true", default=None,
+        help="Override (auto-detected from checkpoint; defaults to False for checkpoints "
+             "that predate the causal-tactile-window fix).",
+    )
+    p.add_argument("--noncausal", dest="causal", action="store_false", help="See --causal.")
+    p.add_argument(
+        "--causal-window", type=int, default=None, help="Override (auto-detected from checkpoint).",
+    )
+    p.add_argument(
+        "--min-history", type=int, default=None, help="Override (auto-detected from checkpoint).",
+    )
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--output", default=None, help="Optional path to save metrics JSON.")
     return p.parse_args(argv)
@@ -142,6 +183,9 @@ def main(argv=None):
         args.motion_threshold if args.motion_threshold is not None else meta["motion_threshold"]
     )
     split_seed = args.split_seed if args.split_seed is not None else meta["split_seed"]
+    causal = args.causal if args.causal is not None else meta["causal"]
+    causal_window = args.causal_window if args.causal_window is not None else meta["causal_window"]
+    min_history = args.min_history if args.min_history is not None else meta["min_history"]
     pose_only = meta["pose_only"]
     shuffle_tactile = meta["shuffle_tactile"]
     target_mode = meta["target_mode"]
@@ -151,6 +195,9 @@ def main(argv=None):
         f"pose_only: {pose_only}  shuffle_tactile: {shuffle_tactile}  "
         f"target_mode: {target_mode}  horizon_k: {horizon_k}  "
         f"tactile_emb_dim: {meta['tactile_emb_dim']}  hidden_dim: {meta['hidden_dim']}"
+    )
+    log.info(
+        f"causal: {causal}  causal_window: {causal_window}  min_history: {min_history}"
     )
     log.info(
         f"git_commit: {meta.get('git_commit', '?')}  git_dirty: {meta.get('git_dirty', '?')}"
@@ -186,6 +233,7 @@ def main(argv=None):
     )
     dataset = PoseTransitionDataset(
         base_dataset, horizon_k, shuffle_tactile=shuffle_tactile, shuffle_seed=split_seed,
+        causal=causal, causal_window=causal_window, min_history=min_history,
     )
     dataloader = DataLoader(
         dataset, batch_size=args.batch_size, shuffle=False,
@@ -219,6 +267,7 @@ def main(argv=None):
     print(f"  Mode           : {mode_label}")
     print(f"  Trained target : {target_mode}")
     print(f"  Horizon k      : {horizon_k}")
+    print(f"  Causal         : {causal}  (window={causal_window}, min_history={min_history})")
     print(f"  Git commit     : {meta.get('git_commit', '?')}  (dirty: {meta.get('git_dirty', '?')})")
     print(f"  Split          : {args.split}  ({int(dual_metrics['world']['num_samples'])} samples)")
     print(f"  Wrist translation MSE : {dual_metrics['wrist_translation_mse']:.6f}")

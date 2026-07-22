@@ -87,6 +87,43 @@ def parse_regression_args(args):
     )
 
     parser.add_argument(
+        "--causal", dest="causal", action="store_true", default=True,
+        help="Tactile embedding for sample (window, t) is computed ONLY from frames "
+             "<= t (a fixed-length causal window ending at t, edge-padded at the start "
+             "-- see --causal-window and opentouch_train.regression_data's "
+             "'CAUSAL TACTILE WINDOW' module docstring section). Default: True. Fixes a "
+             "temporal-leakage bug where the encoder saw the entire T-frame window, "
+             "including frames in (t, t+horizon_k] that the target world_delta = "
+             "pose[t+horizon_k]-pose[t] is computed from.",
+    )
+    parser.add_argument(
+        "--noncausal", dest="causal", action="store_false",
+        help="Disable --causal: reproduces the PRE-FIX behavior (full T-frame window "
+             "fed to the encoder regardless of t) for measuring the leak's magnitude, "
+             "not for new runs.",
+    )
+    parser.add_argument(
+        "--causal-window", type=int, default=None,
+        help="Fixed length of the causal tactile window ending at t (frames before the "
+             "start of the clip are edge-padded by repeating frame 0). Default: "
+             "--sequence-length, matching the length the tactile encoder is trained on. "
+             "Ignored when --noncausal.",
+    )
+    parser.add_argument(
+        "--min-history", type=int, default=10,
+        help="Exclude sample (window, t) unless it has >= this many REAL (non-padded) "
+             "causal frames, i.e. min(t+1, causal_window) >= --min-history -- at small t "
+             "the causal window is mostly edge-padding (t=0 is a single static frame "
+             "repeated causal_window times), and a near-chance result there is "
+             "uninterpretable ('no tactile signal' vs. 'no tactile history was given' look "
+             "identical). Ignored when --noncausal. Since real history is capped at "
+             "sequence_length - horizon_k, this requires sequence_length >= horizon_k + "
+             "min_history (with the default causal_window) or every sample is excluded -- "
+             "PoseTransitionDataset raises immediately with that formula if so, rather than "
+             "silently building an empty dataset. Pass 1 to effectively disable filtering "
+             "(every t has >= 1 real frame, so nothing is excluded).",
+    )
+    parser.add_argument(
         "--tactile-emb-dim", type=int, default=64,
         help="Tactile encoder embedding dim (unused when --pose-only).",
     )
@@ -140,5 +177,26 @@ def parse_regression_args(args):
             "pose-only has no tactile at all, shuffle-tactile has real-but-"
             "mispaired tactile. Pick one."
         )
+    if parsed.causal_window is None:
+        parsed.causal_window = parsed.sequence_length
+    if parsed.causal:
+        # Fast-fail formula, mirrors PoseTransitionDataset.__init__'s own
+        # check exactly (see regression_data.py's "MIN-HISTORY FILTERING"
+        # docstring section) -- catches an infeasible k/sequence_length/
+        # min_history combo before any data is even loaded, not just before
+        # training starts.
+        max_real_history = min(parsed.sequence_length - parsed.horizon_k, parsed.causal_window)
+        if max_real_history < parsed.min_history:
+            raise ValueError(
+                f"--causal with --min-history={parsed.min_history} leaves ZERO valid samples "
+                f"for --horizon-k={parsed.horizon_k} --sequence-length={parsed.sequence_length} "
+                f"--causal-window={parsed.causal_window}: the longest real (non-padded) causal "
+                f"history any t can reach is min(sequence_length-horizon_k, causal_window)="
+                f"{max_real_history} < --min-history={parsed.min_history}. With the default "
+                "causal_window (== sequence_length), this requires sequence_length >= "
+                f"horizon_k + min_history ({parsed.sequence_length} >= {parsed.horizon_k} + "
+                f"{parsed.min_history} = {parsed.horizon_k + parsed.min_history}). Increase "
+                "--sequence-length, reduce --horizon-k, or lower --min-history."
+            )
 
     return parsed

@@ -367,7 +367,11 @@ def _make_multi_window_base_dataset(n_windows=6, sequence_length=20):
 
 def test_shuffled_dataset_pairs_pose_i_with_tactile_j_not_equal_i():
     base, landmarks_per_window, tactile_per_window = _make_multi_window_base_dataset(n_windows=6)
-    ds = PoseTransitionDataset(base, horizon_k=1, shuffle_tactile=True, shuffle_seed=3)
+    # causal=False: this test asserts the sample's tactile equals the DERANGED
+    # window's FULL raw tensor -- that comparison is only valid in noncausal
+    # mode (causal mode returns a strict SLICE of that window). Causal-mode
+    # coverage of the derangement is a separate test below.
+    ds = PoseTransitionDataset(base, horizon_k=1, shuffle_tactile=True, shuffle_seed=3, causal=False)
 
     for window_idx in range(6):
         idx = window_idx * ds.valid_t_per_window  # t=0 sample for this window
@@ -416,6 +420,316 @@ def test_shuffle_tactile_parameter_count_exactly_equals_tactile_pose():
 
 
 # ---------------------------------------------------------------------------
+# Causal tactile window: fixes the temporal-leakage bug where __getitem__
+# returned the ENTIRE T-frame window regardless of t, including frames in
+# (t, t+horizon_k] -- exactly the frames the target world_delta =
+# pose[t+horizon_k]-pose[t] is computed from. causal=True (the default)
+# restricts sample (window, t) to frames <= t only.
+# ---------------------------------------------------------------------------
+
+def _make_frame_indexed_tactile_base_dataset(sequence_length=20, n_windows=1):
+    """Tactile value at frame index f is exactly f (broadcast over the 16x16
+    grid) -- lets tests assert exactly which frame indices ended up in a
+    sample's tactile slice by reading the values back out, rather than by
+    re-deriving the same slicing arithmetic the code under test uses."""
+    landmarks = torch.randn(sequence_length, 1, NUM_KEYPOINTS, COORD_DIM)
+    frame_values = torch.arange(sequence_length).float()
+    tactile = frame_values.view(sequence_length, 1, 1, 1).expand(sequence_length, 1, 16, 16).clone()
+
+    class _FakeBase:
+        def __init__(self):
+            self.sequence_length = sequence_length
+            self.include_pose = True
+            self.include_tactile = True
+
+        def __len__(self):
+            return n_windows
+
+        def __getitem__(self, idx):
+            return {
+                "hand_landmarks": landmarks,
+                "tactile_pressure": tactile,
+                "scene": f"scene{idx}",
+                "clip_id": f"clip{idx}",
+            }
+
+    return _FakeBase()
+
+
+def _make_multi_window_frame_indexed_base_dataset(n_windows=4, sequence_length=20):
+    """Like _make_multi_window_base_dataset, but tactile varies PER FRAME
+    within a window too (value = window*1000 + frame), not just per window --
+    needed to distinguish "which window" from "which frames of that window"
+    in the same assertion."""
+    landmarks_per_window = [torch.randn(sequence_length, 1, NUM_KEYPOINTS, COORD_DIM) for _ in range(n_windows)]
+    tactile_per_window = []
+    for w in range(n_windows):
+        frame_values = torch.arange(sequence_length).float() + w * 1000.0
+        tactile_per_window.append(
+            frame_values.view(sequence_length, 1, 1, 1).expand(sequence_length, 1, 16, 16).clone()
+        )
+
+    class _FakeMultiBase:
+        def __init__(self):
+            self.sequence_length = sequence_length
+            self.include_pose = True
+            self.include_tactile = True
+
+        def __len__(self):
+            return n_windows
+
+        def __getitem__(self, idx):
+            return {
+                "hand_landmarks": landmarks_per_window[idx],
+                "tactile_pressure": tactile_per_window[idx],
+                "scene": f"scene{idx}",
+                "clip_id": f"clip{idx}",
+            }
+
+    return _FakeMultiBase(), landmarks_per_window, tactile_per_window
+
+
+def test_causal_defaults_to_true_and_window_defaults_to_sequence_length():
+    base, _ = _make_fake_base_dataset(sequence_length=20)
+    ds = PoseTransitionDataset(base, horizon_k=1)
+    assert ds.causal is True
+    assert ds.causal_window == 20
+
+
+@pytest.mark.parametrize("horizon_k", [1, 4, 16])
+def test_causal_getitem_never_contains_a_future_frame_by_construction(horizon_k):
+    """By-construction leak probe -- NOT an index-arithmetic check. For each
+    valid t, frames [0, t] are filled with 0 and frames (t, T) are filled
+    with a large distinctive value. If the causal slice for sample
+    (window=0, t) ever contained a frame with index > t, that large value
+    would appear in sample["tactile_pressure"]. The only way this test
+    passes is if the returned tensor is all zero -- this would catch an
+    off-by-one in the slicing arithmetic even if the formula LOOKED right.
+    """
+    sequence_length = 20
+    LARGE = 1e6
+
+    for t in range(sequence_length - horizon_k):
+        tactile = torch.zeros(sequence_length, 1, 16, 16)
+        tactile[t + 1:] = LARGE
+        landmarks = torch.randn(sequence_length, 1, NUM_KEYPOINTS, COORD_DIM)
+
+        class _FakeBase:
+            def __init__(self):
+                self.sequence_length = sequence_length
+                self.include_pose = True
+                self.include_tactile = True
+
+            def __len__(self):
+                return 1
+
+            def __getitem__(self, idx):
+                return {
+                    "hand_landmarks": landmarks, "tactile_pressure": tactile,
+                    "scene": "s", "clip_id": "c",
+                }
+
+        ds = PoseTransitionDataset(_FakeBase(), horizon_k=horizon_k, causal=True)
+        sample = ds[t]  # window_idx=0, t=t (single window, so idx == t)
+        assert sample["t"] == t
+        torch.testing.assert_close(
+            sample["tactile_pressure"], torch.zeros_like(sample["tactile_pressure"]),
+        )
+
+
+def test_causal_tactile_differs_across_t_within_same_window():
+    """The bug's signature: the old code gave every t in a window the
+    IDENTICAL full-window tactile tensor. causal=True must break that --
+    different t means a different (though overlapping) set of frames."""
+    sequence_length = 20
+    base = _make_frame_indexed_tactile_base_dataset(sequence_length=sequence_length)
+    ds = PoseTransitionDataset(base, horizon_k=4, causal=True)
+
+    tactile_by_t = [ds[t]["tactile_pressure"] for t in range(ds.valid_t_per_window)]
+    assert len(tactile_by_t) > 1
+    for i in range(len(tactile_by_t)):
+        for j in range(i + 1, len(tactile_by_t)):
+            assert not torch.equal(tactile_by_t[i], tactile_by_t[j]), (
+                f"causal tactile identical for t={i} and t={j} -- this is exactly the "
+                "pre-fix bug's signature (one embedding/window broadcast to every t)"
+            )
+
+
+def test_noncausal_tactile_is_identical_across_t_within_same_window():
+    """--noncausal must reproduce the PRE-FIX behavior EXACTLY: the full
+    T-window tactile tensor, unchanged, for every t -- this is the
+    regression safety net for measuring the leak's magnitude."""
+    sequence_length = 20
+    base = _make_frame_indexed_tactile_base_dataset(sequence_length=sequence_length)
+    ds = PoseTransitionDataset(base, horizon_k=4, causal=False)
+
+    tactile_by_t = [ds[t]["tactile_pressure"] for t in range(ds.valid_t_per_window)]
+    for t in range(1, len(tactile_by_t)):
+        torch.testing.assert_close(tactile_by_t[0], tactile_by_t[t])
+        assert tactile_by_t[t].shape == (sequence_length, 1, 16, 16)
+
+
+def test_causal_frame_indices_match_manual_clamped_arange():
+    """Independent re-derivation of the causal slicing formula (not calling
+    the same helper the code under test uses): row t of the returned tensor
+    must equal np.clip(arange(t-window+1, t+1), 0, None)."""
+    sequence_length = 20
+    horizon_k = 3
+    causal_window = 7
+    base, _ = _make_fake_base_dataset(sequence_length=sequence_length)
+    ds = PoseTransitionDataset(base, horizon_k=horizon_k, causal=True, causal_window=causal_window)
+
+    assert ds._causal_frame_idx is not None
+    assert ds._causal_frame_idx.shape == (ds.valid_t_per_window, causal_window)
+    for t in range(ds.valid_t_per_window):
+        expected = np.clip(np.arange(t - causal_window + 1, t + 1), 0, None)
+        np.testing.assert_array_equal(ds._causal_frame_idx[t], expected)
+        assert expected.max() <= t  # never a future frame, re-checked independently
+
+
+def test_causal_window_edge_padding_repeats_frame_zero():
+    """t=0 with causal_window > 1: every frame index in the causal slice
+    before the clip started must clamp to frame 0 (edge padding), not wrap
+    around or read out of bounds."""
+    sequence_length = 20
+    base = _make_frame_indexed_tactile_base_dataset(sequence_length=sequence_length)
+    ds = PoseTransitionDataset(base, horizon_k=1, causal=True, causal_window=10)
+
+    sample = ds[0]  # t=0
+    # frames [0-10+1, 0] = [-9..0] all clamp to frame 0 -> every element in
+    # the returned tensor must equal frame 0's distinctive value (0.0)
+    torch.testing.assert_close(sample["tactile_pressure"], torch.zeros_like(sample["tactile_pressure"]))
+
+
+def test_shuffled_tactile_causal_slice_comes_from_deranged_window_at_same_t():
+    """Composition of the two controls: causal windowing must apply to
+    WHICHEVER window the derangement selected, at the SAME t the real
+    pairing would have used -- not the real window's frames, and not a
+    different t."""
+    n_windows = 6
+    horizon_k = 4
+    base, _, tactile_per_window = _make_multi_window_frame_indexed_base_dataset(n_windows=n_windows)
+    ds = PoseTransitionDataset(
+        base, horizon_k=horizon_k, shuffle_tactile=True, shuffle_seed=3, causal=True,
+    )
+    assert ds._causal_frame_idx is not None
+
+    for window_idx in range(n_windows):
+        deranged_window = int(ds.tactile_window_permutation[window_idx])
+        for t in range(ds.valid_t_per_window):
+            idx = window_idx * ds.valid_t_per_window + t
+            sample = ds[idx]
+
+            frame_idx = ds._causal_frame_idx[t]
+            expected_slice = tactile_per_window[deranged_window][frame_idx]
+            torch.testing.assert_close(sample["tactile_pressure"], expected_slice)
+
+            # and NOT the real (non-deranged) window's slice
+            real_slice = tactile_per_window[window_idx][frame_idx]
+            assert not torch.equal(sample["tactile_pressure"], real_slice)
+
+
+def test_causal_window_must_be_positive():
+    base, _ = _make_fake_base_dataset(sequence_length=20)
+    with pytest.raises(ValueError):
+        PoseTransitionDataset(base, horizon_k=1, causal=True, causal_window=0)
+
+
+# ---------------------------------------------------------------------------
+# min_history: excludes samples whose causal window is mostly edge-padding
+# (real, non-padded frame count < min_history). Default min_history=None on
+# the CLASS means "no filtering" (identical to before this parameter
+# existed) -- the safety default of 10 lives in regression_params.py's CLI,
+# not here, so every test above that doesn't pass min_history is unaffected.
+# ---------------------------------------------------------------------------
+
+def test_min_history_none_by_default_matches_pre_filter_behavior():
+    base, _ = _make_fake_base_dataset(sequence_length=20)
+    ds = PoseTransitionDataset(base, horizon_k=16, causal=True)
+    assert ds.min_history is None
+    assert ds.retained_t is None
+    assert len(ds) == len(base) * ds.valid_t_per_window  # nothing excluded
+
+
+def test_min_history_requires_causal():
+    base, _ = _make_fake_base_dataset(sequence_length=20)
+    with pytest.raises(ValueError):
+        PoseTransitionDataset(base, horizon_k=1, causal=False, min_history=5)
+
+
+def test_min_history_must_be_positive():
+    base, _ = _make_fake_base_dataset(sequence_length=20)
+    with pytest.raises(ValueError):
+        PoseTransitionDataset(base, horizon_k=1, causal=True, min_history=0)
+
+
+def test_min_history_k16_t20_raises_with_clear_message_not_silent_empty():
+    """The exact structural problem this fix closes: at horizon_k=16,
+    sequence_length=20, every t's real history is <= 4 (min(t+1,20) for
+    t in 0..3), so min_history=10 (the CLI default) leaves ZERO valid t.
+    This must raise at construction, naming the k+H formula -- not build a
+    silently-empty (len==0) dataset that fails mysteriously later."""
+    base, _ = _make_fake_base_dataset(sequence_length=20)
+    with pytest.raises(ValueError, match=r"horizon_k \+ min_history"):
+        PoseTransitionDataset(base, horizon_k=16, causal=True, min_history=10)
+
+
+def test_min_history_excludes_exactly_the_samples_below_threshold():
+    """horizon_k=4, sequence_length=20 -> valid_t=16, t in [0,15], real
+    history = t+1 (causal_window defaults to 20 >= 16, never the binding
+    constraint here). min_history=10 must retain EXACTLY t in [9,15] (7
+    values: real history 10..16) and exclude EXACTLY t in [0,8] (9 values:
+    real history 1..9)."""
+    base, _ = _make_fake_base_dataset(sequence_length=20)
+    ds = PoseTransitionDataset(base, horizon_k=4, causal=True, min_history=10)
+
+    assert ds.retained_t is not None
+    np.testing.assert_array_equal(ds.retained_t, np.arange(9, 16))
+    assert len(ds) == len(base) * 7
+
+    # every retained sample's "t" field must be >= 9 (real history >= 10)
+    seen_t = sorted({ds[i]["t"] for i in range(len(ds))})
+    assert seen_t == list(range(9, 16))
+
+
+def test_min_history_capped_by_causal_window_not_just_horizon():
+    """A small --causal-window can be the binding constraint even when
+    sequence_length/horizon_k alone would allow enough history: real
+    history is min(t+1, causal_window), so causal_window=5 caps every
+    sample's real history at 5 regardless of how large t gets."""
+    base, _ = _make_fake_base_dataset(sequence_length=20)
+    with pytest.raises(ValueError, match=r"causal_window=5"):
+        PoseTransitionDataset(base, horizon_k=1, causal=True, causal_window=5, min_history=10)
+
+    # min_history=5 (== causal_window) should retain t >= 4 (real history
+    # min(t+1,5) reaches exactly 5 starting at t=4)
+    ds = PoseTransitionDataset(base, horizon_k=1, causal=True, causal_window=5, min_history=5)
+    np.testing.assert_array_equal(ds.retained_t, np.arange(4, 19))  # valid_t_per_window=19
+
+
+def test_min_history_filtering_preserves_correct_pose_and_tactile_content():
+    """Filtering must not just shrink __len__ -- the samples that DO remain
+    must carry the correct (pose_t, world_delta, tactile) content for their
+    ACTUAL t, not for their post-filter position in the retained list."""
+    sequence_length = 20
+    horizon_k = 4
+    base = _make_frame_indexed_tactile_base_dataset(sequence_length=sequence_length)
+    landmarks = base[0]["hand_landmarks"].squeeze(1)
+    ds = PoseTransitionDataset(base, horizon_k=horizon_k, causal=True, min_history=10)
+
+    for i in range(len(ds)):
+        sample = ds[i]
+        t = sample["t"]
+        assert t >= 9  # matches the retained-set derivation above
+        torch.testing.assert_close(sample["pose_t"], landmarks[t])
+        torch.testing.assert_close(sample["world_delta"], landmarks[t + horizon_k] - landmarks[t])
+        # causal tactile at this t must still contain no frame > t (the
+        # min-history filter and the causal-window fix are independent
+        # invariants; filtering must not weaken the other).
+        assert sample["tactile_pressure"].max().item() <= t
+
+
+# ---------------------------------------------------------------------------
 # __getitem__ must be numerically identical to the old
 # base_dataset[window_idx]-per-access implementation it replaced (the
 # dataloader-bottleneck fix precomputes pose/tactile once in __init__
@@ -429,8 +743,12 @@ def test_getitem_matches_reference_base_dataset_path(horizon_k, shuffle_tactile)
     base, landmarks_per_window, tactile_per_window = _make_multi_window_base_dataset(
         n_windows=n_windows, sequence_length=20,
     )
+    # causal=False: this test's reference path reloads the FULL window on
+    # every access (the pre-caching implementation) -- only valid to compare
+    # tactile_pressure against in noncausal mode. Causal-mode slicing
+    # correctness is covered by the causal-specific tests below.
     ds = PoseTransitionDataset(
-        base, horizon_k=horizon_k, shuffle_tactile=shuffle_tactile, shuffle_seed=3,
+        base, horizon_k=horizon_k, shuffle_tactile=shuffle_tactile, shuffle_seed=3, causal=False,
     )
 
     for window_idx in range(n_windows):

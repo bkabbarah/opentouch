@@ -320,6 +320,18 @@ def main(args):
                 "git_dirty": args.git_dirty,
                 "pose_only": args.pose_only,
                 "shuffle_tactile": args.shuffle_tactile,
+                # causal/causal_window/min_history: reconstructing the wrong
+                # tactile-window config would silently evaluate a DIFFERENT
+                # (window,t) sample set / encoder input than training used --
+                # see regression_data.py's "CAUSAL TACTILE WINDOW" and
+                # "MIN-HISTORY FILTERING" docstring sections. min_history is
+                # recorded as None when --noncausal (matches what
+                # get_regression_data actually passed to PoseTransitionDataset,
+                # not the raw --min-history default, which is meaningless
+                # under --noncausal).
+                "causal": args.causal,
+                "causal_window": args.causal_window,
+                "min_history": args.min_history if args.causal else None,
                 # Always the RESOLVED value (user-supplied or computed once
                 # above) -- eval must reuse this exact number, not recompute it.
                 "motion_threshold": args.motion_threshold,
