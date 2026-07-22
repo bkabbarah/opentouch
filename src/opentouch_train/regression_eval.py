@@ -73,9 +73,11 @@ def _read_checkpoint_meta(path) -> dict:
         "hidden_dim": ckpt.get("hidden_dim"),
         "sequence_length": ckpt.get("sequence_length"),
         "split_seed": ckpt.get("split_seed"),
+        "git_commit": ckpt.get("git_commit"),
+        "git_dirty": ckpt.get("git_dirty"),
     }
 
-    if any(meta[k] is None for k in _REQUIRED_META_FIELDS):
+    if any(meta[k] is None for k in _REQUIRED_META_FIELDS + ("git_commit", "git_dirty")):
         params_file = Path(path).resolve().parent.parent / "params.txt"
         params = _read_params_file(params_file)
 
@@ -93,6 +95,8 @@ def _read_checkpoint_meta(path) -> dict:
         _coerce("hidden_dim", int)
         _coerce("sequence_length", int)
         _coerce("split_seed", int)
+        _coerce("git_commit", str)
+        _coerce("git_dirty", lambda v: v == "True")
 
     missing = [k for k in _REQUIRED_META_FIELDS if meta[k] is None]
     if missing:
@@ -147,6 +151,9 @@ def main(argv=None):
         f"pose_only: {pose_only}  shuffle_tactile: {shuffle_tactile}  "
         f"target_mode: {target_mode}  horizon_k: {horizon_k}  "
         f"tactile_emb_dim: {meta['tactile_emb_dim']}  hidden_dim: {meta['hidden_dim']}"
+    )
+    log.info(
+        f"git_commit: {meta.get('git_commit', '?')}  git_dirty: {meta.get('git_dirty', '?')}"
     )
 
     device = torch.device(args.device)
@@ -212,6 +219,7 @@ def main(argv=None):
     print(f"  Mode           : {mode_label}")
     print(f"  Trained target : {target_mode}")
     print(f"  Horizon k      : {horizon_k}")
+    print(f"  Git commit     : {meta.get('git_commit', '?')}  (dirty: {meta.get('git_dirty', '?')})")
     print(f"  Split          : {args.split}  ({int(dual_metrics['world']['num_samples'])} samples)")
     print(f"  Wrist translation MSE : {dual_metrics['wrist_translation_mse']:.6f}")
     if not pose_only:

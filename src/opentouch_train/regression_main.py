@@ -15,6 +15,7 @@ import glob
 import logging
 import os
 import random
+import subprocess
 import sys
 from datetime import datetime
 
@@ -227,6 +228,8 @@ def main(args):
             )
             logging.info(f"Parameter parity with tactile+pose confirmed: {num_params:,} == {reference_params:,}")
         logging.info("Params:")
+        args.git_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
+        args.git_dirty = bool(subprocess.check_output(['git', 'status', '--porcelain']).decode().strip())
         params_file = os.path.join(args.logs, args.name, "params.txt")
         with open(params_file, "w") as f:
             for name in sorted(vars(args)):
@@ -313,6 +316,8 @@ def main(args):
                 "task_type": args.task_type,
                 "horizon_k": args.horizon_k,
                 "target_mode": args.target_mode,
+                "git_commit": args.git_commit,
+                "git_dirty": args.git_dirty,
                 "pose_only": args.pose_only,
                 "shuffle_tactile": args.shuffle_tactile,
                 # Always the RESOLVED value (user-supplied or computed once
