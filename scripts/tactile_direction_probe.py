@@ -32,7 +32,7 @@ to the same leak in PoseTransitionDataset.__getitem__. --noncausal
 reproduces the pre-fix numbers so the leakage magnitude stays measurable;
 the report always shows both side by side.
 
-Five conditions, each producing one probe per (joint, axis):
+Seven conditions, each producing one probe per (joint, axis):
   - tactile_causal / tactile_noncausal:
         embedding from the SAME window as the pose target, causal or the
         pre-fix full-window broadcast, respectively.
@@ -47,6 +47,36 @@ Five conditions, each producing one probe per (joint, axis):
         information we already know is partially predictive, so probe
         scores here bound what a probe of this size/kind can achieve at
         all. Unaffected by causal/noncausal (no tactile involved).
+  - pose_plus_tactile_causal / pose_plus_shuffled_tactile_causal:
+        hstack(pose_t[63], tactile_causal_embedding[64]) -> 127-dim, and the
+        same concatenation with the shuffled-tactile causal embedding in
+        place of the real one. Built from the ALREADY-COMPUTED pose_t and
+        *_causal feature matrices (see build_pose_plus_tactile_condition --
+        no re-encoding), on the SAME globally min-history-filtered sample
+        set as every other condition. pose_plus_shuffled_tactile_causal is
+        the dimensionality control for pose_plus_tactile_causal: both are
+        127-dim, so an AUC gain of pose_plus_tactile_causal over pose(63)
+        cannot be attributed to extra feature-count alone -- only a gain
+        over pose_plus_shuffled_tactile_causal isolates tactile CONTENT.
+  - pose_emb_causal:
+        the frozen biGRU POSE encoder (PoseEncoder, from the SAME retrieval
+        checkpoint's "pose.*" tower, load_pose_encoder) run over a CAUSAL
+        pose history <= t -- identical causal-window machinery as
+        encode_causal for tactile (same _causal_frame_indices, same
+        gather-then-batch pattern, see encode_pose_causal), just gathering
+        from pose landmarks instead of tactile pixels. Mirrors pose_t (the
+        single-frame, 63-dim pose condition, kept unchanged for reference)
+        but replaces "pose at t" with "learned embedding of pose history <=
+        t" -- the gap between pose_emb_causal and pose_t's probe scores
+        quantifies how much VELOCITY (multi-frame pose dynamics) matters
+        versus a single static frame.
+  - pose_emb_causal_plus_tactile_causal / pose_emb_causal_plus_shuffled_tactile_causal:
+        hstack(pose_emb_causal[pose_emb_dim], tactile_causal_embedding[64])
+        and its shuffled-tactile dimensionality control, built the same way
+        as pose_plus_tactile_causal but with pose_emb_causal in place of
+        pose_t -- tests whether tactile adds anything ON TOP OF a pose
+        encoder that already sees multi-frame history, not just on top of a
+        single static frame.
 
 MIN-HISTORY FILTERING (fixes a second problem the causal fix exposed): at
 k=16 with T=20, valid t is 0..3, so causal samples have at most 1-4 REAL
@@ -92,9 +122,11 @@ import torch
 from opentouch.pose_regression import (
     COORD_DIM,
     NUM_KEYPOINTS,
+    POSE_DIM,
     WRIST_INDEX,
     decompose_world_delta,
 )
+from opentouch.pose_encoder import PoseEncoder
 from opentouch.regression_metrics import fingertip_displacement
 from opentouch.tactile_encoder import CNNetEmbedding
 from opentouch_train.data import VideoTactilePoseDataset, _load_and_split_dataset
@@ -194,6 +226,70 @@ def load_tactile_encoder(checkpoint_path: str, emb_dim: int, device: torch.devic
     return encoder
 
 
+def load_pose_encoder(checkpoint_path: str, emb_dim: int, device: torch.device) -> PoseEncoder:
+    """Load ONLY the 'pose.*' submodule of the SAME retrieval checkpoint
+    load_tactile_encoder reads from, into a standalone, frozen PoseEncoder.
+    Mirrors load_tactile_encoder's structure exactly (checkpoint/state_dict
+    parsing duplicated rather than shared -- see module report: this keeps
+    each loader independently correct/testable, and the two are called
+    on the same checkpoint path from main() so a mismatch between them
+    would only ever be an architecture/emb_dim problem, never a
+    "loaded a different file" problem).
+
+    Unlike tactile (cnn_gru vs contact_* encoder_type), model.py has no
+    encoder-type branching for pose -- self.pose is always PoseEncoder -- so
+    there is no architecture-choice metadata to check here, only emb_dim
+    (verified explicitly against the checkpoint's projection layer width,
+    below, in addition to the strict-load that would fail on a mismatch
+    anyway).
+    """
+    if not Path(checkpoint_path).exists():
+        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+    ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+
+    if "state_dict" in ckpt:
+        full_state = ckpt["state_dict"]
+    elif "model" in ckpt:
+        full_state = ckpt["model"]
+    else:
+        full_state = ckpt
+    if next(iter(full_state)).startswith("module."):
+        full_state = {k[len("module."):]: v for k, v in full_state.items()}
+
+    pose_state = {
+        k[len("pose."):]: v for k, v in full_state.items() if k.startswith("pose.")
+    }
+    if not pose_state:
+        raise ValueError(
+            f"Checkpoint '{checkpoint_path}' has no 'pose.*' weights in its state_dict -- "
+            "was this trained with the pose tower enabled (e.g. a p2t/t2p/vp2t task)?"
+        )
+
+    # Explicit width confirmation, not just "strict=True didn't crash":
+    # projection.weight is (emb_dim, 240) -- its output (row) dimension IS
+    # the checkpoint's pose embed_dim.
+    checkpoint_pose_emb_dim = pose_state["projection.weight"].shape[0]
+    if checkpoint_pose_emb_dim != emb_dim:
+        raise ValueError(
+            f"--pose-emb-dim={emb_dim} does not match this checkpoint's pose projection "
+            f"output width ({checkpoint_pose_emb_dim}) -- pass "
+            f"--pose-emb-dim={checkpoint_pose_emb_dim} instead."
+        )
+
+    encoder = PoseEncoder(emb_dim=emb_dim)
+    encoder.load_state_dict(pose_state, strict=True)
+    encoder.to(device).eval()
+    for p in encoder.parameters():
+        p.requires_grad_(False)
+
+    log.info(
+        f"Loaded frozen pose encoder: strict=True, {len(pose_state)} tensors, "
+        f"projection width (pose embed_dim)={checkpoint_pose_emb_dim}, from checkpoint "
+        f"'{checkpoint_path}' (epoch={ckpt.get('epoch', '?')})."
+    )
+    return encoder
+
+
 @torch.no_grad()
 def encode_windows(
     encoder: CNNetEmbedding, tactile: torch.Tensor, batch_size: int, device: torch.device,
@@ -252,6 +348,46 @@ def encode_causal(
     return torch.cat(embeds, dim=0)
 
 
+@torch.no_grad()
+def encode_pose_causal(
+    encoder: PoseEncoder,
+    pose: torch.Tensor,             # (N, T, 21, 3) -- one full window per row
+    window_idx: np.ndarray,         # (M,) which window each sample's pose is read from
+    t_values: np.ndarray,           # (M,) which t within that window
+    causal_frame_idx: np.ndarray,   # (valid_t, W) row t = frame indices for that t, all <= t
+    batch_size: int,
+    device: torch.device,
+) -> torch.Tensor:
+    """(M, emb_dim): one embedding per (window, t) SAMPLE -- CAUSAL pose
+    history <= t. Identical gather-then-batch construction to encode_causal
+    (same causal_frame_idx source, same window_idx/t_values contract, same
+    per-sample "no frame with index > t ever assembled into the encoder's
+    input" guarantee) -- the only difference is gathering from a (N,T,21,3)
+    pose tensor instead of a (N,T,1,16,16) tactile tensor, and feeding
+    PoseEncoder instead of CNNetEmbedding. PoseEncoder's internal
+    normalization (_normalize_pose) averages a scale statistic over its
+    OWN input tensor's time axis (dim=1) -- since that input is already the
+    W-frame causal gather (never containing a frame > t), this internal
+    averaging cannot pull in future information either; see the module
+    report's no-leak test, which verifies this on the actual encoder rather
+    than by reading the source.
+    """
+    M = len(window_idx)
+    window_idx_t = torch.as_tensor(window_idx, dtype=torch.long)
+    frame_idx_per_sample = causal_frame_idx[t_values]  # (M, W) numpy gather, one row per sample
+    frame_idx_t = torch.as_tensor(frame_idx_per_sample, dtype=torch.long)
+
+    embeds = []
+    for start in range(0, M, batch_size):
+        end = min(start + batch_size, M)
+        w = window_idx_t[start:end]                  # (b,)
+        f = frame_idx_t[start:end]                    # (b, W)
+        chunk = pose[w.unsqueeze(1), f]                # (b, W, 21, 3) -- advanced-index gather
+        chunk = chunk.to(device)
+        embeds.append(encoder(chunk).cpu())
+    return torch.cat(embeds, dim=0)
+
+
 def extract_samples(dataset: PoseTransitionDataset):
     """Vectorized equivalent of iterating dataset[i] for every valid
     (window, t) -- avoids the ~1500x-per-sample cost of the real __getitem__
@@ -275,6 +411,70 @@ def extract_samples(dataset: PoseTransitionDataset):
     pose_t_flat = pose_t.reshape(-1, NUM_KEYPOINTS * COORD_DIM)  # (N*valid_t, 63)
 
     return window_idx, t_values, pose_t_flat, articulation_delta
+
+
+def build_pose_plus_tactile_condition(
+    pose_train: np.ndarray, pose_val: np.ndarray,
+    tactile_causal_train: np.ndarray, tactile_causal_val: np.ndarray,
+    tactile_noncausal_train: "np.ndarray | None" = None,
+    tactile_noncausal_val: "np.ndarray | None" = None,
+):
+    """hstack(pose[63], tactile_causal[64]) -> 127-dim, for pose_plus_tactile_causal
+    or pose_plus_shuffled_tactile_causal depending on whether the caller
+    passes the real or the shuffled *_causal embedding as tactile_causal_*.
+    Does NOT re-encode anything -- pose_train/pose_val and
+    tactile_causal_train/tactile_causal_val must already be the
+    ALREADY-COMPUTED, globally min-history-filtered feature matrices used by
+    every other condition (same row order, same (window,t) sample set).
+
+    Every assertion here is a BY-CONSTRUCTION check on the actual returned
+    arrays, not on index arithmetic:
+      - row counts of pose and tactile must already match (same sample set).
+      - the tactile HALF of the concatenation, read back out, must be
+        byte-identical to the tactile_causal_* array passed in -- proves
+        hstack placed it in the columns callers expect (POSE_DIM:), not
+        merely that the shapes work out.
+      - if the noncausal counterpart is supplied, the tactile half must be
+        DIFFERENT from it (a real distinctness check, not just "we used the
+        causal variable name") -- catches an accidental swap to the leaky
+        pre-fix embedding.
+    """
+    if pose_train.shape[0] != tactile_causal_train.shape[0]:
+        raise ValueError(
+            f"pose_train has {pose_train.shape[0]} rows but tactile_causal_train has "
+            f"{tactile_causal_train.shape[0]} -- these must already be aligned to the same "
+            "(window,t) sample set before calling this function"
+        )
+    if pose_val.shape[0] != tactile_causal_val.shape[0]:
+        raise ValueError(
+            f"pose_val has {pose_val.shape[0]} rows but tactile_causal_val has "
+            f"{tactile_causal_val.shape[0]} rows -- same alignment requirement as train"
+        )
+
+    train = np.hstack([pose_train, tactile_causal_train])
+    val = np.hstack([pose_val, tactile_causal_val])
+    assert train.shape == (pose_train.shape[0], pose_train.shape[1] + tactile_causal_train.shape[1])
+    assert val.shape == (pose_val.shape[0], pose_val.shape[1] + tactile_causal_val.shape[1])
+
+    pose_dim = pose_train.shape[1]
+    np.testing.assert_array_equal(train[:, :pose_dim], pose_train)
+    np.testing.assert_array_equal(val[:, :pose_dim], pose_val)
+    np.testing.assert_array_equal(train[:, pose_dim:], tactile_causal_train)
+    np.testing.assert_array_equal(val[:, pose_dim:], tactile_causal_val)
+
+    if tactile_noncausal_train is not None:
+        assert not np.array_equal(train[:, pose_dim:], tactile_noncausal_train), (
+            "the concatenation's tactile half is IDENTICAL to the NONCAUSAL embedding "
+            "(whole-array match) -- a *_causal condition must never carry non-causal "
+            "(leaky) tactile content; check which embedding array was passed in"
+        )
+    if tactile_noncausal_val is not None:
+        assert not np.array_equal(val[:, pose_dim:], tactile_noncausal_val), (
+            "the concatenation's tactile half (val) is IDENTICAL to the NONCAUSAL "
+            "embedding -- see train-side message"
+        )
+
+    return train, val
 
 
 def real_history_length(t_values: np.ndarray, causal_window: int) -> np.ndarray:
@@ -374,6 +574,12 @@ def parse_args(argv=None):
     p.add_argument("--split-seed", type=int, default=42, help="Clip-level train/val split seed; also the derangement seed for the shuffled-tactile control.")
     p.add_argument("--tactile-emb-dim", type=int, default=64, help="Must match the checkpoint's embed_dim.")
     p.add_argument(
+        "--pose-emb-dim", type=int, default=64,
+        help="Must match the checkpoint's pose projection output width -- load_pose_encoder "
+             "checks this explicitly and raises a clear error naming the correct value if "
+             "it's wrong, rather than relying on the strict state_dict load's error alone.",
+    )
+    p.add_argument(
         "--motion-threshold", type=float, default=None,
         help="'Moving' cutoff on median-fingertip ARTICULATION displacement at k. Default: "
              "computed from the train split as the 25th percentile of that statistic "
@@ -426,6 +632,7 @@ def main(argv=None):
     causal_window = args.causal_window if args.causal_window is not None else args.sequence_length
 
     encoder = load_tactile_encoder(args.checkpoint, args.tactile_emb_dim, device)
+    pose_encoder = load_pose_encoder(args.checkpoint, args.pose_emb_dim, device)
 
     splits = _load_and_split_dataset(args.data, args.val_ratio, args.test_ratio, args.split_seed)
     assert "train" in splits, "Training split is required."
@@ -544,6 +751,22 @@ def main(argv=None):
         val_causal_frame_idx, args.batch_size, device,
     )
 
+    # --- Causal POSE embedding: identical construction to causal tactile
+    # above (same train_causal_frame_idx/val_causal_frame_idx -- causal
+    # windowing depends only on t and causal_window, not on modality, so
+    # they're reused rather than recomputed), gathering from train_ds._pose
+    # instead of train_ds._tactile and feeding PoseEncoder instead of
+    # CNNetEmbedding.
+    log.info(f"Encoding pose: causal (one embedding per (window,t) sample, window={causal_window})...")
+    train_pose_emb_causal = encode_pose_causal(
+        pose_encoder, train_ds._pose, train_window_idx, train_t_values,
+        train_causal_frame_idx, args.batch_size, device,
+    )  # (M_train, pose_emb_dim)
+    val_pose_emb_causal = encode_pose_causal(
+        pose_encoder, val_ds._pose, val_window_idx, val_t_values,
+        val_causal_frame_idx, args.batch_size, device,
+    )  # (M_val, pose_emb_dim)
+
     conditions_raw = {
         "tactile_causal": (train_embed_causal.numpy(), val_embed_causal.numpy()),
         "tactile_noncausal": (
@@ -558,6 +781,65 @@ def main(argv=None):
         ),
         "pose": (train_pose_t.numpy(), val_pose_t.numpy()),
     }
+
+    # pose_plus_tactile_causal / pose_plus_shuffled_tactile_causal: built
+    # from the ALREADY-COMPUTED pose_t and *_causal embeddings above -- NO
+    # re-encoding. Row alignment is guaranteed by construction (both halves
+    # come from arrays indexed by the same, already-filtered
+    # train_window_idx/train_t_values), and build_pose_plus_tactile_condition
+    # re-verifies it (and the causal-not-noncausal guarantee) by construction
+    # rather than trusting that guarantee silently.
+    train_tactile_noncausal_np = train_embed_noncausal[train_window_idx].numpy()
+    val_tactile_noncausal_np = val_embed_noncausal[val_window_idx].numpy()
+    train_tactile_noncausal_shuffled_np = train_embed_noncausal_shuffled[train_window_idx].numpy()
+    val_tactile_noncausal_shuffled_np = val_embed_noncausal_shuffled[val_window_idx].numpy()
+
+    conditions_raw["pose_plus_tactile_causal"] = build_pose_plus_tactile_condition(
+        train_pose_t.numpy(), val_pose_t.numpy(),
+        train_embed_causal.numpy(), val_embed_causal.numpy(),
+        tactile_noncausal_train=train_tactile_noncausal_np,
+        tactile_noncausal_val=val_tactile_noncausal_np,
+    )
+    conditions_raw["pose_plus_shuffled_tactile_causal"] = build_pose_plus_tactile_condition(
+        train_pose_t.numpy(), val_pose_t.numpy(),
+        train_embed_causal_shuffled.numpy(), val_embed_causal_shuffled.numpy(),
+        tactile_noncausal_train=train_tactile_noncausal_shuffled_np,
+        tactile_noncausal_val=val_tactile_noncausal_shuffled_np,
+    )
+    for name in ("pose_plus_tactile_causal", "pose_plus_shuffled_tactile_causal"):
+        assert conditions_raw[name][0].shape[1] == POSE_DIM + args.tactile_emb_dim
+        assert conditions_raw[name][1].shape[1] == POSE_DIM + args.tactile_emb_dim
+
+    # pose_emb_causal and its tactile-augmented variants: pose_t (single
+    # frame at t, kept above unchanged for reference) replaced by
+    # pose_emb_causal (learned embedding of pose history <= t) as the
+    # "pose" half. build_pose_plus_tactile_condition is fully generic on
+    # pose width, so it's reused unchanged from the pose_t conditions above
+    # -- only the pose array passed in differs.
+    conditions_raw["pose_emb_causal"] = (train_pose_emb_causal.numpy(), val_pose_emb_causal.numpy())
+    conditions_raw["pose_emb_causal_plus_tactile_causal"] = build_pose_plus_tactile_condition(
+        train_pose_emb_causal.numpy(), val_pose_emb_causal.numpy(),
+        train_embed_causal.numpy(), val_embed_causal.numpy(),
+        tactile_noncausal_train=train_tactile_noncausal_np,
+        tactile_noncausal_val=val_tactile_noncausal_np,
+    )
+    conditions_raw["pose_emb_causal_plus_shuffled_tactile_causal"] = build_pose_plus_tactile_condition(
+        train_pose_emb_causal.numpy(), val_pose_emb_causal.numpy(),
+        train_embed_causal_shuffled.numpy(), val_embed_causal_shuffled.numpy(),
+        tactile_noncausal_train=train_tactile_noncausal_shuffled_np,
+        tactile_noncausal_val=val_tactile_noncausal_shuffled_np,
+    )
+    assert conditions_raw["pose_emb_causal"][0].shape[1] == args.pose_emb_dim
+    assert conditions_raw["pose_emb_causal"][1].shape[1] == args.pose_emb_dim
+    for name in ("pose_emb_causal_plus_tactile_causal", "pose_emb_causal_plus_shuffled_tactile_causal"):
+        assert conditions_raw[name][0].shape[1] == args.pose_emb_dim + args.tactile_emb_dim
+        assert conditions_raw[name][1].shape[1] == args.pose_emb_dim + args.tactile_emb_dim
+    # Row counts must match every other condition -- same globally-filtered
+    # sample set, not a separately-derived one.
+    for name in conditions_raw:
+        assert conditions_raw[name][0].shape[0] == len(train_window_idx), name
+        assert conditions_raw[name][1].shape[0] == len(val_window_idx), name
+
     # Standardize once per condition (not per joint/axis) -- fit depends
     # only on X, and is reused across all 60 joint/axis probes.
     conditions = {
