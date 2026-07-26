@@ -383,6 +383,15 @@ def main(args):
                 "model": args.model,
                 "tactile_encoder_type": args.tactile_encoder_type,
                 "tactile_b_matrices_path": args.tactile_b_matrices_path,
+                # Split geometry, recorded so eval reconstructs the SAME
+                # gallery. Without these, eval.py falls back to its own CLI
+                # defaults and a run trained on a different split is scored
+                # against the wrong clips with no error raised.
+                "split_seed": args.split_seed,
+                "split_group_by": getattr(args, "split_group_by", "clip"),
+                "sequence_length": args.sequence_length,
+                "val_ratio": args.val_ratio,
+                "test_ratio": args.test_ratio,
             }
             if scaler is not None:
                 checkpoint_dict["scaler"] = scaler.state_dict()

@@ -254,6 +254,12 @@ def parse_args(args):
         type=int,
         help="Random seed for train/val/test split. Fixed independently of --seed to ensure comparable test sets across training runs.",
     )
+    parser.add_argument(
+        "--split-group-by",
+        default="clip",
+        choices=["clip", "scene"],
+        help="Unit held disjoint across splits. 'clip' (default) reproduces every existing result. 'scene' holds whole scenes -- location + participant -- disjoint, testing generalization to a NEW participant rather than to new clips of a participant already seen in training.",
+    )
 
     parser.add_argument(
         "--dist-url",

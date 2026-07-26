@@ -111,6 +111,9 @@ def parse_args(argv=None):
     p.add_argument("--val-ratio", type=float, default=0.1, help="Val split ratio (must match training).")
     p.add_argument("--test-ratio", type=float, default=0.1, help="Test split ratio (must match training).")
     p.add_argument("--seed", type=int, default=42, help="Random seed for split (must match training).")
+    p.add_argument("--split-group-by", default=None, choices=["clip", "scene"],
+                   help="Unit held disjoint across splits; must match training. Defaults to the "
+                        "value recorded in the checkpoint, falling back to 'clip'.")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--output", default=None, help="Optional path to save metrics JSON.")
     return p.parse_args(argv)
@@ -173,6 +176,19 @@ def main(argv=None):
     )
     model.eval()
 
+    # The split geometry must match training exactly or the gallery is a
+    # different set of clips. Prefer what the checkpoint recorded; a CLI
+    # override wins but says so, and an older checkpoint that predates the
+    # field falls back to the historical 'clip' behaviour.
+    split_group_by = args.split_group_by or meta.get("split_group_by") or "clip"
+    if args.split_group_by and meta.get("split_group_by") and args.split_group_by != meta["split_group_by"]:
+        logging.warning(
+            "--split-group-by=%s OVERRIDES the checkpoint's recorded %s -- the eval gallery "
+            "will not be the split this model was trained against.",
+            args.split_group_by, meta["split_group_by"],
+        )
+    logging.info("Evaluating with split_group_by=%s", split_group_by)
+
     dataset = VideoTactilePoseDataset(
         hf_dataset_path=args.data,
         split=args.split,
@@ -181,6 +197,7 @@ def main(argv=None):
         val_ratio=args.val_ratio,
         test_ratio=args.test_ratio,
         random_seed=args.seed,
+        split_group_by=split_group_by,
         **modality_flags,
     )
     dataloader = DataLoader(

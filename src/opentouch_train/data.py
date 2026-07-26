@@ -85,10 +85,64 @@ def split_clips_into_train_val_test(
     val_ratio: float,
     test_ratio: float,
     seed: int,
+    group_by: str = "clip",
 ) -> Dict[str, List[Tuple[str, str]]]:
+    """Partition (scene, clip_id) keys into train/val/test.
+
+    `group_by` selects the unit held disjoint across splits:
+
+      "clip"  (default, unchanged behaviour) -- individual clips are dealt
+              out independently, so clips from the SAME scene land in train,
+              val and test. A scene name encodes location + participant, so
+              this measures generalization to new clips of participants the
+              model has already seen.
+
+      "scene" -- whole scenes are dealt out, so no participant appears in
+              more than one split. This is the stricter question: does the
+              model generalize to a NEW participant? It matters here because
+              the biGRU pose encoder adds ~440k parameters over avg-pooling
+              and could exploit participant-specific hand geometry and glove
+              calibration that clip-level splitting leaves visible in train.
+
+    Ratios are applied to the number of GROUPS, not clips, so scene-level
+    splits will not land on exactly val_ratio of the clips -- scenes differ
+    in clip count. The realized clip counts are logged by the caller.
+    """
+    if group_by not in ("clip", "scene"):
+        raise ValueError(f"group_by must be 'clip' or 'scene', got {group_by!r}")
+
     clips = list(clip_keys)
     if not clips:
         return {"train": [], "val": [], "test": []}
+
+    if group_by == "scene":
+        by_scene: Dict[str, List[Tuple[str, str]]] = defaultdict(list)
+        for key in clips:
+            by_scene[key[0]].append(key)
+        # Sort before shuffling so the partition depends only on the seed,
+        # not on the order rows happened to appear in the HF dataset.
+        scenes = sorted(by_scene)
+        scene_split = split_clips_into_train_val_test(
+            clip_keys=[(scene, "") for scene in scenes],
+            val_ratio=val_ratio,
+            test_ratio=test_ratio,
+            seed=seed,
+            group_by="clip",
+        )
+        result = {
+            name: [clip for scene, _ in members for clip in by_scene[scene]]
+            for name, members in scene_split.items()
+        }
+        logger.info(
+            "Scene-disjoint split (%d scenes): train %d scenes/%d clips, "
+            "val %d/%d, test %d/%d.",
+            len(scenes),
+            len(scene_split["train"]), len(result["train"]),
+            len(scene_split["val"]), len(result["val"]),
+            len(scene_split["test"]), len(result["test"]),
+        )
+        return result
+
     rng = random.Random(seed)
     rng.shuffle(clips)
     n = len(clips)
@@ -120,6 +174,7 @@ class VideoTactilePoseDataset(Dataset):
         val_ratio: float = 0.1,
         test_ratio: float = 0.1,
         random_seed: int = 42,
+        split_group_by: str = "clip",
         include_tactile: bool = True,
         include_visual: bool = True,
         include_pose: bool = True,
@@ -148,6 +203,7 @@ class VideoTactilePoseDataset(Dataset):
                     val_ratio=val_ratio,
                     test_ratio=test_ratio,
                     seed=random_seed,
+                    group_by=split_group_by,
                 )
                 clips_for_split = split_to_clips.get(split, [])
                 dataset_indices: List[int] = []
@@ -275,8 +331,13 @@ def _determine_modality_flags(task_type: str) -> Dict[str, bool]:
     }
 
 
-def _load_and_split_dataset(dataset_path, val_ratio, test_ratio, seed):
-    """Load dataset once and split into train/val/test subsets."""
+def _load_and_split_dataset(dataset_path, val_ratio, test_ratio, seed, group_by="clip"):
+    """Load dataset once and split into train/val/test subsets.
+
+    `group_by` is forwarded to split_clips_into_train_val_test -- "clip"
+    (default) reproduces every existing result; "scene" holds whole
+    scenes (location + participant) disjoint across splits.
+    """
     loaded_dataset = load_from_disk(dataset_path)
     if isinstance(loaded_dataset, DatasetDict):
         return dict(loaded_dataset)
@@ -285,7 +346,7 @@ def _load_and_split_dataset(dataset_path, val_ratio, test_ratio, seed):
     clip_to_frames = group_frames_by_video_clip(full_dataset)
     split_to_clips = split_clips_into_train_val_test(
         clip_keys=list(clip_to_frames.keys()),
-        val_ratio=val_ratio, test_ratio=test_ratio, seed=seed,
+        val_ratio=val_ratio, test_ratio=test_ratio, seed=seed, group_by=group_by,
     )
     splits = {}
     for split_name, clip_keys in split_to_clips.items():
@@ -321,15 +382,16 @@ def get_data(args, epoch=0):
     )
     val_path = getattr(args, 'val_data', None) or dataset_path
     same_source = val_path == dataset_path
+    group_by = getattr(args, 'split_group_by', 'clip')
 
     if same_source:
-        splits = _load_and_split_dataset(dataset_path, val_ratio, test_ratio, seed)
+        splits = _load_and_split_dataset(dataset_path, val_ratio, test_ratio, seed, group_by)
         train_preloaded = splits.get("train")
         val_preloaded = splits.get("val")
     else:
-        train_splits = _load_and_split_dataset(dataset_path, val_ratio, test_ratio, seed)
+        train_splits = _load_and_split_dataset(dataset_path, val_ratio, test_ratio, seed, group_by)
         train_preloaded = train_splits.get("train")
-        val_splits = _load_and_split_dataset(val_path, val_ratio, test_ratio, seed)
+        val_splits = _load_and_split_dataset(val_path, val_ratio, test_ratio, seed, group_by)
         val_preloaded = val_splits.get("val")
 
     train_dataset = VideoTactilePoseDataset(
