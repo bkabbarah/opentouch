@@ -39,8 +39,18 @@ and, orthogonally, a change of basis:
   - world axes (x, y, z)  -- arbitrary lab frame, what the probe used.
   - hand axes (`hand_frame_basis`) -- a palm-anchored orthonormal frame built
     from the pose at time t, in which the axes mean something fixed relative
-    to the hand: `long` (wrist->middle-MCP), `flex` (the direction fingers
-    curl toward the palm), `normal` (palm normal).
+    to the hand: `radial` (along the palm, wrist toward fingertips),
+    `spread` (across the palm), `curl` (perpendicular to the palm).
+
+    These names are not guesses. scripts/validate_handframe.py measures what
+    each axis does on real poses, and the assignment above is what it found:
+    grip opening and closing moves fingertips along `radial` (r=0.99),
+    finger fanning moves them along `spread` (r=0.70), and fingertip
+    displacement relative to the knuckles is dominated by `curl` (61% of the
+    geometry), which is what finger flexion looks like. An earlier version of
+    this module named these (long, flex, normal) and had `flex` on the
+    abduction axis; that was wrong, because normal x long lies IN the palm
+    plane, and flexion is perpendicular to it.
 
 SCOPE NOTE. Defining the target's coordinate frame is measurement, not an
 architectural prior -- no model here is given anatomical structure, and
@@ -73,7 +83,7 @@ assert (_INDEX_MCP, _MIDDLE_MCP, _PINKY_MCP) == (5, 9, 17)
 ARTICULATING_JOINTS = tuple(j for j in range(NUM_KEYPOINTS) if j != WRIST_INDEX)
 
 AXIS_NAMES_WORLD = ("x", "y", "z")
-AXIS_NAMES_HAND = ("long", "flex", "normal")
+AXIS_NAMES_HAND = ("radial", "spread", "curl")
 
 
 def _check_pose(name: str, pose: torch.Tensor) -> None:
@@ -153,9 +163,14 @@ def hand_frame_basis(pose: torch.Tensor) -> torch.Tensor:
     """(B,21,3) -> (B,3,3) orthonormal palm-anchored basis, ROWS are the axes
     in the order (`long`, `flex`, `normal`):
 
-      long   = normalize(middle_MCP - wrist)          palm's long axis
-      normal = normalize(long x (index_MCP - pinky_MCP))   palm normal
-      flex   = normal x long                          fingers curl toward this
+      radial = normalize(middle_MCP - wrist)         along the palm, distal
+      curl   = normalize(radial x (index_MCP - pinky_MCP))  palm normal
+      spread = curl x radial                         across the palm
+
+    Note `spread` lies in the palm plane (curl x radial is the component of
+    the transverse axis orthogonal to radial), so it is the ABDUCTION
+    direction. Flexion is perpendicular to the palm, i.e. `curl`. Verified
+    empirically by scripts/validate_handframe.py.
 
     Built from the pose at a single time step (call it with the pose at t),
     so re-expressing a delta in this basis is a rotation of the target only --
@@ -172,13 +187,14 @@ def hand_frame_basis(pose: torch.Tensor) -> torch.Tensor:
     long_axis = centered[:, _MIDDLE_MCP, :]
     transverse = centered[:, _INDEX_MCP, :] - centered[:, _PINKY_MCP, :]
 
-    long_n = torch.nn.functional.normalize(long_axis, dim=-1, eps=1e-12)
-    normal_n = torch.nn.functional.normalize(
-        torch.cross(long_n, transverse, dim=-1), dim=-1, eps=1e-12
+    radial_n = torch.nn.functional.normalize(long_axis, dim=-1, eps=1e-12)
+    curl_n = torch.nn.functional.normalize(
+        torch.cross(radial_n, transverse, dim=-1), dim=-1, eps=1e-12
     )
-    flex_n = torch.cross(normal_n, long_n, dim=-1)
+    spread_n = torch.cross(curl_n, radial_n, dim=-1)
 
-    basis = torch.stack([long_n, flex_n, normal_n], dim=1)  # (B,3,3), rows = axes
+    # Row order must match AXIS_NAMES_HAND = (radial, spread, curl).
+    basis = torch.stack([radial_n, spread_n, curl_n], dim=1)  # (B,3,3), rows = axes
 
     degenerate = hand_frame_degenerate(pose)
     if degenerate.any():
@@ -209,8 +225,8 @@ def to_hand_frame(delta: torch.Tensor, basis: torch.Tensor) -> torch.Tensor:
     """(B,21,3) delta + (B,3,3) row-basis -> (B,21,3) delta in hand axes.
 
     Component i of the output is the projection of the delta onto row i of
-    the basis, so output[..., 0] is motion along `long`, [..., 1] along
-    `flex`, [..., 2] along `normal`.
+    the basis, so output[..., 0] is motion along `radial`, [..., 1] along
+    `spread`, [..., 2] along `curl` -- matching AXIS_NAMES_HAND.
     """
     _check_pose("delta", delta)
     if basis.shape[1:] != (COORD_DIM, COORD_DIM):
@@ -239,7 +255,7 @@ def all_target_variants(
       rigid_removed            non-rigid residual only, in t's world axes.
       rigid_removed_handframe  non-rigid residual only, in palm axes. This is
                                the strictest and the most anatomically
-                               interpretable: a nonzero `flex` component here
+                               interpretable: a nonzero `curl` component here
                                is finger flexion and cannot be whole-hand
                                motion of any kind.
 

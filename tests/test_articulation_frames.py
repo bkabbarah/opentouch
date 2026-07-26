@@ -260,6 +260,37 @@ def test_hand_frame_target_is_invariant_to_the_world_frame():
 # --------------------------------------------------------------------------
 
 
+def test_axis_names_match_basis_row_order():
+    """The names are load-bearing: rows are stacked (radial, spread, curl) and
+    AXIS_NAMES_HAND must agree, or reported per-axis results get mislabeled.
+    An earlier version had `flex` on the abduction axis because
+    curl x radial lies IN the palm plane; this pins the corrected order."""
+    from opentouch.articulation_frames import AXIS_NAMES_HAND
+    assert AXIS_NAMES_HAND == ("radial", "spread", "curl")
+
+
+def test_spread_lies_in_the_palm_plane_and_curl_is_perpendicular_to_it():
+    """The geometric fact behind the renaming. `spread` = curl x radial is the
+    component of the palm's transverse axis orthogonal to radial, so it lies
+    IN the palm plane: that is abduction. Flexion moves fingertips out of the
+    palm plane, i.e. along `curl`."""
+    pose = random_hand(batch=16, seed=40)
+    basis = hand_frame_basis(pose)
+    radial, spread, curl = basis[:, 0], basis[:, 1], basis[:, 2]
+
+    centered = wrist_centered(pose)
+    transverse = centered[:, 5] - centered[:, 17]
+    transverse = torch.nn.functional.normalize(transverse, dim=-1)
+
+    # `curl` is perpendicular to BOTH palm-defining directions.
+    assert (torch.einsum("bi,bi->b", curl, radial)).abs().max() < TOL
+    assert (torch.einsum("bi,bi->b", curl, transverse)).abs().max() < TOL
+    # `spread` lies in the plane those two span, so it has no curl component
+    # and a large transverse component.
+    assert (torch.einsum("bi,bi->b", spread, curl)).abs().max() < TOL
+    assert (torch.einsum("bi,bi->b", spread, transverse)).abs().min() > 0.5
+
+
 def test_hand_frame_basis_is_orthonormal_and_right_handed():
     basis = hand_frame_basis(random_hand(batch=32, seed=25))
     eye = torch.eye(COORD_DIM).expand(32, COORD_DIM, COORD_DIM)
