@@ -42,6 +42,10 @@ p.add_argument("--split-group-by", default="clip", choices=["clip", "scene"],
 p.add_argument("--emb-dim", type=int, default=64)
 p.add_argument("--batch-size", type=int, default=256)
 p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+p.add_argument("--all-variants", action="store_true",
+               help="Also probe the two intermediate targets (rotation removed but world "
+                    "axes; rotation kept but palm axes), which separates the frame change "
+                    "from the rotation removal instead of confounding them.")
 p.add_argument("--output", required=True)
 a = p.parse_args()
 dev = torch.device(a.device)
@@ -88,8 +92,24 @@ CONDS = {
 STD = {n: standardize(x, y) for n, (x, y) in CONDS.items()}
 MOV = {n: y[va["moving"]] for n, (_, y) in STD.items()}
 
-AXES = {"wrist_translation_removed": ("x", "y", "z"),
-        "rigid_removed_handframe": ("long", "flex", "normal")}
+# Full 2x2 decomposition. The headline comparison changes TWO things at
+# once (remove whole-hand rotation, AND re-express in palm axes), so both
+# intermediates are computed to attribute the gain to one, the other, or
+# their interaction:
+#
+#                        world axes                 palm axes
+#   rotation kept   wrist_translation_removed   ..._handframe
+#   rotation gone   rigid_removed               rigid_removed_handframe
+ALL_AXES = {
+    "wrist_translation_removed": ("x", "y", "z"),
+    "wrist_translation_removed_handframe": ("long", "flex", "normal"),
+    "rigid_removed": ("x", "y", "z"),
+    "rigid_removed_handframe": ("long", "flex", "normal"),
+}
+AXES = ALL_AXES if a.all_variants else {
+    k: v for k, v in ALL_AXES.items()
+    if k in ("wrist_translation_removed", "rigid_removed_handframe")
+}
 out = {"horizon_k": a.horizon_k, "sequence_length": a.sequence_length,
        "split_group_by": a.split_group_by, "checkpoint": a.checkpoint,
        "n_val_moving": int(va["moving"].sum()), "results": {}}
