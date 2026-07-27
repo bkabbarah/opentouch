@@ -47,7 +47,8 @@ def test_mean_mode_has_strictly_fewer_parameters():
     gru_params = sum(p.numel() for p in PoseEncoder(temporal_mode="gru").parameters())
     mean_params = sum(p.numel() for p in PoseEncoder(temporal_mode="mean").parameters())
     assert mean_params < gru_params
-    # The whole gap is the recurrent stack -- the projection is shared.
+    # Almost all of the gap is the recurrent stack; the rest is the narrower
+    # projection (128 wide instead of 240).
     assert gru_params - mean_params > 300_000
 
 
@@ -71,12 +72,29 @@ def test_mean_mode_is_invariant_to_frame_order_and_gru_mode_is_not():
         )
 
 
-def test_projection_shape_is_identical_across_modes():
-    """Both arms share one projection layer of the same shape, so the only
-    difference between them is the aggregation."""
-    gru_encoder = PoseEncoder(temporal_mode="gru")
-    mean_encoder = PoseEncoder(temporal_mode="mean")
-    assert gru_encoder.projection.weight.shape == mean_encoder.projection.weight.shape
+def test_projection_width_matches_each_mode_s_readout():
+    """240 for the biGRU (concat of final forward and backward hidden states,
+    2 x 120), 128 for mean pooling (the per-frame encoder width). The mean
+    width matters for compatibility: it is what upstream avg-pool checkpoints
+    were trained with, so they load into this class unchanged."""
+    assert PoseEncoder(temporal_mode="gru").projection.weight.shape == (64, 240)
+    assert PoseEncoder(temporal_mode="mean").projection.weight.shape == (64, 128)
+
+
+def test_mean_mode_loads_an_upstream_avgpool_state_dict():
+    """Regression guard. An earlier version zero-padded the pooled vector to
+    240 so both modes shared a projection shape; that made every historical
+    avg-pool checkpoint fail to load with a size mismatch, which is how it was
+    caught. This builds a state_dict shaped like the upstream encoder and
+    asserts it loads strictly."""
+    encoder = PoseEncoder(temporal_mode="mean")
+    # randn_like would fail on integer buffers (BatchNorm num_batches_tracked).
+    upstream = {
+        k: (torch.randn_like(v) if v.is_floating_point() else v.clone())
+        for k, v in encoder.state_dict().items()
+    }
+    assert upstream["projection.weight"].shape == (64, 128)
+    encoder.load_state_dict(upstream, strict=True)
 
 
 def test_state_dicts_are_not_interchangeable():
@@ -98,29 +116,6 @@ def test_invalid_temporal_mode_raises_with_a_useful_message():
 def test_normalize_mode_still_validated():
     with pytest.raises(ValueError):
         PoseEncoder(normalize_mode="bogus")
-
-
-def test_mean_mode_padding_does_not_leak_into_the_pooled_half():
-    """The pooled vector is zero-padded 128 -> 240 to share the projection.
-    Verify the pad is genuinely zeros and sits after the real features, so
-    the baseline is not quietly receiving noise in those dimensions."""
-    encoder = PoseEncoder(temporal_mode="mean").eval()
-    captured = {}
-
-    original = encoder.projection.forward
-
-    def spy(inp):
-        captured["input"] = inp.detach().clone()
-        return original(inp)
-
-    encoder.projection.forward = spy
-    with torch.no_grad():
-        encoder(landmarks(seed=2))
-    encoder.projection.forward = original
-
-    activations = captured["input"]
-    assert activations.shape[-1] == 240
-    assert torch.all(activations[:, 128:] == 0), "padding region must be exactly zero"
 
 
 @pytest.mark.parametrize("frames", [2, 20, 36])

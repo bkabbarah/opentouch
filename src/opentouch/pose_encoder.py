@@ -20,9 +20,12 @@ class PoseEncoder(nn.Module):
       "gru"  (default) -- 2-layer bidirectional GRU, readout = concat of the
              final forward and final backward hidden states (240 dims).
       "mean" -- temporal average pooling, the original OpenTouch baseline.
-             The pooled 128-dim vector is zero-padded to 240 so BOTH modes
-             share one projection layer of identical shape; the GRU is simply
-             not constructed in this mode.
+             Projects the pooled 128-dim vector directly, matching the
+             upstream architecture exactly, so historical avg-pool
+             checkpoints load into this class unchanged. (An earlier version
+             zero-padded to 240 to share one projection shape across modes;
+             that was functionally equivalent but carried 7,168 dead input
+             columns and made those checkpoints unloadable.)
 
     Having both in one class matters for provenance: the avg-pool control was
     previously only runnable from a different repository, which made the
@@ -67,7 +70,9 @@ class PoseEncoder(nn.Module):
             nn.Dropout(0.1),
             nn.Linear(128, 128),
         )
-        self.projection = nn.Linear(240, emb_dim)  # replaces existing projection
+        # 240 = concat of the biGRU's final forward and backward hidden
+        # states (2 x 120); 128 = the per-frame encoder width, pooled.
+        self.projection = nn.Linear(240 if temporal_mode == "gru" else 128, emb_dim)
 
     @torch.no_grad()
     def _normalize_pose(self, x: torch.Tensor) -> torch.Tensor:
@@ -99,10 +104,7 @@ class PoseEncoder(nn.Module):
             combined = torch.cat([h_n[-2], h_n[-1]], dim=-1)  # fwd last + bwd last
         else:
             # Average pooling discards temporal order entirely -- this is the
-            # baseline the GRU is measured against. Zero-padding to 240 keeps
-            # the projection layer shape identical across modes so the only
-            # difference between the two arms is the aggregation itself.
-            pooled = seq.mean(dim=1)
-            combined = F.pad(pooled, (0, 240 - pooled.shape[-1]))
+            # baseline the GRU is measured against.
+            combined = seq.mean(dim=1)
         return self.projection(F.relu(combined))
 
