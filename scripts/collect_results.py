@@ -135,6 +135,13 @@ def section_decisive(lines):
         return
     lines.append("Probe given wrist-centred raw pose at 8 causal lags (%d dims of kinematics).\n"
                  % (len(data.get("lags", [])) * 63))
+    bad = data.get("non_converged_fits") or {}
+    if bad:
+        lines.append("> **WARNING: %d fits hit the iteration limit** (%s). A baseline that "
+                     "stops early looks artificially weak and inflates the apparent tactile "
+                     "gain. Treat this section as provisional.\n" % (sum(bad.values()), bad))
+    else:
+        lines.append("All fits converged.\n")
     lines.append("| axis | pose_emb | pose_RAW | raw+touch | raw+shuffled |")
     lines.append("|---|---|---|---|---|")
     for axis, entry in data["axes"].items():
