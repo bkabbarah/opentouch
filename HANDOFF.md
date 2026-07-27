@@ -1,4 +1,4 @@
-# OpenTouch — working state, 2026-07-26
+# OpenTouch — working state, updated 2026-07-27
 
 Written so a fresh session (or a fresh person) can pick this up cold. The
 conversation is not the source of truth; this file, `AUDIT.md`,
@@ -8,6 +8,11 @@ Branch: `audit/frames-subsets-scene-split` (pushed to `origin`, and checked
 out on the cluster at `~/scratch/bashar/opentouch-gru`).
 
 ---
+
+> **Updated 2026-07-27 after the overnight run.** Every open question from the
+> first version has been answered. See `MORNING_REPORT.md` on the cluster for
+> the auto-generated current view; sections 2.10 to 2.14 below carry the new
+> results.
 
 ## 1. Where things stand in one paragraph
 
@@ -122,10 +127,11 @@ needs the scene-disjoint-trained encoder (see §4).
 |---|---|---|
 | seed 42 (`2026_06_22-21_01_54`) | +0.0171 | 0.6605 |
 | seed 0 (`2026_07_06-22_35_40`) | **+0.0124** | 0.6598 |
-| seed 1 (`2026_07_06-22_36_12`) | running | — |
+| seed 1 (`2026_07_06-22_36_12`) | **+0.0120** | 0.6614 |
 
-Positive at both seeds so far, but the magnitude varies by ~27%. Report as a
-range, not a point estimate, once seed 1 lands.
+**Mean +0.0138, std 0.0023.** Seed 42 is the outlier high, and it is the seed
+every headline number came from. Quote the mean. Touch-alone is far more
+stable (0.6605 / 0.6598 / 0.6614), so the abstract's AUC range is unaffected.
 
 ### 2.7 Rotation share of the "articulation" target (val)
 
@@ -149,7 +155,7 @@ This caught a real bug: the axes were originally named (long, flex, normal)
 with `flex` on the abduction axis, because `curl × radial` lies *in* the palm
 plane. Rows are unchanged; only labels moved. No number was affected.
 
-### 2.9 Regression / forecasting (Phase 2B) — still negative
+### 2.9 Regression / forecasting (Phase 2B) — the OLD, superseded runs
 
 | config | k=16 MSE (moving, fingertips, articulation) |
 |---|---|
@@ -158,10 +164,82 @@ plane. Rows are unchanged; only labels moved. No number was affected.
 | tactile + pose | 0.008694 |
 | shuffled tactile | 0.009901 |
 
-**We have no forecaster that uses tactile and beats pose-only.** The probe
-shows the information is present; nothing yet shows a model exploiting it.
-These runs are also pre-causal-fix (see §3.4), used the rotation-dominated
-target, and had a confounded ablation. Rebuilding this is the main open work.
+**We still have no forecaster that uses tactile and beats pose-only.** But
+these runs are pre-causal-fix (§3.4), used the rotation-dominated target, and
+had a confounded ablation, and §2.11 now shows touch does carry magnitude
+information. So this null is a design artifact, not evidence of absence.
+Rebuilding is the main open work.
+
+### 2.10 THE DECISIVE CONTROL: touch vs full raw kinematics (k=8)
+
+Probe given 504 dims of wrist-centred lagged pose, not the 64-dim embedding.
+All fits converged (an earlier attempt hit the iteration limit on 177 of 240
+fits and was discarded; see `results_rawpose_k8_UNCONVERGED_DISCARD.json`).
+
+| axis | raw kinematics | + touch | touch adds | vs shuffled |
+|---|---|---|---|---|
+| radial | 0.6469 | 0.6842 | **+0.0373** [+0.0197, +0.0567] | +0.0398 |
+| spread | 0.6222 | 0.6425 | +0.0203 [+0.0072, +0.0337] | +0.0232 |
+| curl | 0.6200 | 0.6586 | **+0.0386** [+0.0232, +0.0544] | +0.0414 |
+
+**Touch adds on every axis against uncompressed kinematics.** The "touch is
+recovering what the bottleneck discarded" explanation is dead. Note raw
+kinematics is *worse* than the learned embedding on radial and curl, so the
+contrastive embedding is not merely lossy: it extracts something a linear
+readout of positions cannot.
+
+### 2.11 Magnitude (k=8) — the gate OPENED
+
+Ridge onto the delta vector rather than its sign. Error reduction from adding
+touch, clip-clustered CIs:
+
+| comparison | all joints | fingertips |
+|---|---|---|
+| vs pose embedding | +3.66% [CI excludes 0] | +3.15% |
+| vs raw kinematics | **+7.38%** [CI excludes 0] | **+6.79%** |
+| vs shuffled twin | +7.67% | +7.08% |
+
+**Touch carries magnitude information, not only direction.** This reverses the
+expectation and means the end-to-end forecasting rebuild is worth doing. Caveat
+for any claim: this is frozen features plus ridge, an easier setting than
+end-to-end MSE training. It shows the information is linearly accessible, not
+that a trained network will find it.
+
+### 2.12 Robustness — all four checks passed
+
+| check | published target | corrected target | touch alone |
+|---|---|---|---|
+| Participant-disjoint, clip-split encoder | −0.0051 | **+0.0165** | 0.6774 |
+| Participant-disjoint, scene-trained encoder (fully clean) | +0.0008 | **+0.0225** | 0.6861 |
+| Held-out TEST split, k=4 | −0.0025 | **+0.0192** | 0.6468 |
+| Held-out TEST split, k=8 | −0.0012 | **+0.0199** | 0.6566 |
+
+Test-split numbers are *higher* than val, and the fully clean participant test
+is the strongest in the set. The published target sits near zero throughout.
+
+### 2.13 Retrieval under participant-disjoint splits — read carefully
+
+Both arms trained AND evaluated with whole scenes held out:
+
+| split | avg-pool | biGRU | ratio |
+|---|---|---|---|
+| val | 5.81 | 29.09 | 5.01x |
+| test | 5.29 | **28.31** | **5.36x** |
+
+The ratio improves (2.71x to 5.36x) but **both absolute numbers collapse**:
+biGRU 45.46 to 28.31, avg-pool 16.76 to 5.29. The clip-disjoint figures were
+inflated by participant memorization. Not a gallery artifact: 1411 windows
+versus 1399, and a smaller gallery would have raised mAP.
+
+**The architectural claim strengthens; the absolute performance claim weakens.**
+Bring this to Paul rather than letting him find it.
+
+### 2.14 Subset analysis — the PI's regime hypothesis, answered
+
+**0 of 36 pre-registered cells survive multiplicity correction**, on both the
+published and corrected targets. Touch's contribution is global, not
+concentrated in any contact-level, contact-transition, pose-speed or
+grip-aperture regime. A cleaner result than a subset finding would have been.
 
 ---
 
@@ -232,17 +310,20 @@ Tests: 190+, all passing. `python -m pytest tests/ -q`.
 
 ## 6. Open questions, in priority order
 
-1. **Does touch add over FULL raw kinematics?** (`probe_rawpose.py`, queued.)
-   This is the difference between "touch carries contact information
-   kinematics lack" and "touch recovers what a 64-dim bottleneck discarded".
-   If it fails, soften the claim to "beyond a learned pose encoder".
-2. **Rebuild the forecasting arm** against the corrected target with causal
-   tactile and an unconfounded ablation. Until a model beats pose-only, this
-   is a representation-analysis result, not a prediction result.
-3. **Scene-disjoint encoder + scene-disjoint probe** once training finishes.
-4. **Test-split confirmation** (queued).
-5. **Seed 1**, then report the marginal as a range.
-6. Retrieval bootstrap CIs. `bootstrap_eval.py` exists and has never been run.
+Items 1, 3, 4 and 5 from the first version are all **done** and reported in
+§2.10 to §2.14. What remains:
+
+1. **Rebuild the forecasting arm.** Now well motivated: §2.11 shows touch
+   carries magnitude information, so the earlier null was a design problem
+   (rotation-dominated target, confounded ablation, noncausal tactile) rather
+   than absence of signal. Needs the corrected target plumbed into
+   `regression_data`/`pose_regression`, an ablation where zeroing the gate
+   removes only tactile, T=36 so k=16 is feasible with min-history, and
+   three seeds per condition.
+2. **Retrieval bootstrap CIs.** `bootstrap_eval.py` exists and has never run.
+   Retrieval is the actual SOTA-relative-to-OpenTouch claim and currently has
+   only a 3-seed std.
+3. **Subset confirm stage** is moot: nothing survived discovery.
 
 ---
 
