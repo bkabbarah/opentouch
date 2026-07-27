@@ -42,6 +42,11 @@ p.add_argument("--split-group-by", default="clip", choices=["clip", "scene"],
 p.add_argument("--emb-dim", type=int, default=64)
 p.add_argument("--batch-size", type=int, default=256)
 p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+p.add_argument("--eval-split", default="val", choices=["val", "test"],
+               help="Split the probe is scored on. The probe is always FIT on train. "
+                    "The test split has been touched by no probe in this project, so "
+                    "scoring on it is a genuine out-of-sample confirmation rather than "
+                    "a repeat of the set every earlier decision was made against.")
 p.add_argument("--all-variants", action="store_true",
                help="Also probe the two intermediate targets (rotation removed but world "
                     "axes; rotation kept but palm axes), which separates the frame change "
@@ -78,7 +83,7 @@ def prep(name, threshold):
     return dict(tgts=tgts, moving=moving, tactile=tc, shuf=ts, pose_emb=pe), threshold
 
 tr, thr = prep("train", None)
-va, _ = prep("val", thr)
+va, _ = prep(a.eval_split, thr)
 
 CONDS = {
     "tactile": (tr["tactile"], va["tactile"]),
@@ -112,6 +117,7 @@ AXES = ALL_AXES if a.all_variants else {
 }
 out = {"horizon_k": a.horizon_k, "sequence_length": a.sequence_length,
        "split_group_by": a.split_group_by, "checkpoint": a.checkpoint,
+       "eval_split": a.eval_split,
        "n_val_moving": int(va["moving"].sum()), "results": {}}
 
 for variant, axis_names in AXES.items():
