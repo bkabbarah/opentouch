@@ -217,7 +217,7 @@ that a trained network will find it.
 Test-split numbers are *higher* than val, and the fully clean participant test
 is the strongest in the set. The published target sits near zero throughout.
 
-### 2.13 Retrieval under participant-disjoint splits — read carefully
+### 2.13 Retrieval under participant-disjoint splits — DO NOT QUOTE YET
 
 Both arms trained AND evaluated with whole scenes held out:
 
@@ -231,8 +231,16 @@ biGRU 45.46 to 28.31, avg-pool 16.76 to 5.29. The clip-disjoint figures were
 inflated by participant memorization. Not a gallery artifact: 1411 windows
 versus 1399, and a smaller gallery would have raised mAP.
 
+> **These numbers are INVALID as reported and must not go on a poster.** The
+> avg-pool arm was trained with a ReLU before the projection that the upstream
+> avg-pool architecture never had (see §2.15), so the baseline was handicapped
+> and 5.36x is measured against too weak an opponent. That arm is being
+> retrained with the corrected encoder. The biGRU side and every probe result
+> are unaffected.
+
 **The architectural claim strengthens; the absolute performance claim weakens.**
-Bring this to Paul rather than letting him find it.
+Bring this to Paul rather than letting him find it, once the corrected number
+is in.
 
 ### 2.14 Subset analysis — the PI's regime hypothesis, answered
 
@@ -240,6 +248,58 @@ Bring this to Paul rather than letting him find it.
 published and corrected targets. Touch's contribution is global, not
 concentrated in any contact-level, contact-transition, pose-speed or
 grip-aperture regime. A cleaner result than a subset finding would have been.
+
+### 2.15 Same-codebase retrieval, verified 2026-07-27
+
+The headline comparison is now reproduced end to end through one eval path in
+this repository:
+
+| | this codebase, today | originally reported |
+|---|---|---|
+| avg-pool test | **16.76** | 16.76 |
+| avg-pool val | 14.41 | 14.42 |
+| biGRU test | **45.46** | 45.46 |
+| biGRU val | 40.98 | 40.97 |
+
+**16.8 → 45.5, 2.71x, same codebase, same eval path.** The cross-repo
+provenance gap is closed.
+
+Reaching it required two fixes to `PoseEncoder(temporal_mode="mean")`, both
+found by trying to load the upstream checkpoint:
+
+1. **Projection width.** The first version zero-padded the pooled 128-dim
+   vector to 240 so both modes shared a projection shape. Upstream projects
+   from 128, so those checkpoints failed to load on a size mismatch.
+2. **The ReLU.** Upstream avg-pool projects the pooled vector directly; the
+   ReLU arrived with the GRU in commit 73dc799 and was never part of that
+   architecture. Mean mode had inherited it. With the ReLU the upstream
+   checkpoint scores **10.25** instead of 16.76.
+
+The second one has consequences beyond checkpoint loading: it handicapped the
+overnight scene-disjoint avg-pool arm, which is why §2.13 is quarantined.
+
+### 2.16 Forecasting rebuild — running as of 2026-07-27
+
+18 runs: pose-only / tactile+pose / shuffled-tactile, k ∈ {8,16}, 3 seeds.
+All methodological fixes on: `--target-mode rigid_articulation`, `--causal`
+with `--sequence-length 36 --min-history 10`,
+`--tactile-correction-input tactile_only` (so gate=0 removes exactly tactile),
+`--grad-clip-scope per_branch` (so the pose head is clipped identically in
+both arms).
+
+First data point, pose-only k=8 at epoch 25/300, moving fingertips:
+
+| target space | model | copy-zero | improvement |
+|---|---|---|---|
+| rigid (trained) | 0.000297 | 0.000312 | 4.8% |
+| articulation | 0.002975 | 0.002971 | −0.1% |
+| world | 0.020545 | 0.020556 | 0.1% |
+
+**The corrected target is a much harder problem.** Pose-only beat copy-zero by
+17% on the old articulation target and by 4.8% here, because removing
+whole-hand rotation strips out the predictable inertial component. Expect
+small effect sizes, and read tactile-vs-shuffled rather than
+tactile-vs-pose-only, since only the shuffled twin is capacity-matched.
 
 ---
 
