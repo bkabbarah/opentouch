@@ -22,10 +22,11 @@ class PoseEncoder(nn.Module):
       "mean" -- temporal average pooling, the original OpenTouch baseline.
              Projects the pooled 128-dim vector directly, matching the
              upstream architecture exactly, so historical avg-pool
-             checkpoints load into this class unchanged. (An earlier version
-             zero-padded to 240 to share one projection shape across modes;
-             that was functionally equivalent but carried 7,168 dead input
-             columns and made those checkpoints unloadable.)
+             checkpoints load into this class unchanged, and reproduce their
+             published numbers. Two things had to match for that: the
+             projection width (128, not a padded 240) and the ABSENCE of the
+             ReLU that arrived alongside the GRU. Getting either wrong scores
+             an upstream checkpoint at roughly 10 mAP instead of 16.8.
 
     Having both in one class matters for provenance: the avg-pool control was
     previously only runnable from a different repository, which made the
@@ -102,9 +103,14 @@ class PoseEncoder(nn.Module):
             self.gru.flatten_parameters()
             _, h_n = self.gru(seq)
             combined = torch.cat([h_n[-2], h_n[-1]], dim=-1)  # fwd last + bwd last
-        else:
-            # Average pooling discards temporal order entirely -- this is the
-            # baseline the GRU is measured against.
-            combined = seq.mean(dim=1)
-        return self.projection(F.relu(combined))
+            # The ReLU arrived with the GRU (commit 73dc799) and was never part
+            # of the avg-pool encoder, so it stays inside this branch.
+            return self.projection(F.relu(combined))
+
+        # Average pooling discards temporal order entirely -- this is the
+        # baseline the GRU is measured against. No ReLU: upstream projects the
+        # pooled vector directly, and applying one here both diverges from the
+        # published architecture and handicaps the baseline by zeroing every
+        # negative pooled feature.
+        return self.projection(seq.mean(dim=1))
 
