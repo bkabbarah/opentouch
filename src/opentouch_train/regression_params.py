@@ -58,6 +58,18 @@ def parse_regression_args(args):
              "reported on ALL samples regardless -- see opentouch.regression_metrics.",
     )
     parser.add_argument(
+        "--grad-clip-scope", type=str, default="global",
+        choices=["global", "per_branch"],
+        help="Scope of gradient-norm clipping. 'global' (default, and what every "
+             "historical run used) clips over all parameters at once, which couples the "
+             "conditions: the tactile model has ~540k more parameters, so it clips more "
+             "often and the pose head sees a different effective learning rate than in "
+             "the pose-only arm. 'per_branch' clips the pose and tactile paths "
+             "separately against the same norm, so the pose head's clipping does not "
+             "depend on whether a tactile branch exists. Use 'per_branch' for any run "
+             "whose pose-only-vs-tactile comparison will be reported.",
+    )
+    parser.add_argument(
         "--tactile-correction-input", type=str, default="pose_tactile",
         choices=["pose_tactile", "tactile_only"],
         help="What the residual correction head sees. 'pose_tactile' (default, and "

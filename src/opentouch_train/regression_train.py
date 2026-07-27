@@ -113,6 +113,40 @@ def _select_target(
     )
 
 
+def _clip_gradients(model, max_norm: float, scope: str) -> None:
+    """Gradient clipping, with the scope made explicit because it silently
+    couples the two conditions being compared.
+
+    'global' (the historical default) clips the L2 norm over EVERY parameter
+    at once. The tactile model carries ~540k more parameters than the
+    pose-only model, so its total norm is larger, so clipping fires more often
+    and rescales the pose head's updates too. The pose head then sees a
+    different effective learning rate in the two arms, and part of any
+    measured difference is that, not tactile.
+
+    'per_branch' clips the pose path and the tactile path separately, each
+    against the same max_norm. The pose head's clipping is then identical
+    whether or not a tactile branch exists, so the comparison isolates
+    tactile rather than an optimisation side effect.
+    """
+    if scope == "global":
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm, norm_type=2.0)
+        return
+    if scope != "per_branch":
+        raise ValueError(f"grad_clip_scope must be 'global' or 'per_branch', got {scope!r}")
+
+    pose_params, tactile_params = [], []
+    for name, param in model.named_parameters():
+        if param.grad is None:
+            continue
+        (tactile_params if name.startswith(("tactile_encoder", "tactile_head", "gate"))
+         else pose_params).append(param)
+    if pose_params:
+        torch.nn.utils.clip_grad_norm_(pose_params, max_norm, norm_type=2.0)
+    if tactile_params:
+        torch.nn.utils.clip_grad_norm_(tactile_params, max_norm, norm_type=2.0)
+
+
 def _is_val_epoch(epoch: int, val_frequency: int, total_epochs: int) -> bool:
     if not val_frequency:
         return True
@@ -161,15 +195,16 @@ def train_one_epoch_regression(model, data, epoch, optimizer, scaler, scheduler,
 
         backward(loss, scaler)
 
+        clip_scope = getattr(args, "grad_clip_scope", "global")
         if scaler is not None:
             if args.grad_clip_norm is not None:
                 scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip_norm, norm_type=2.0)
+                _clip_gradients(model, args.grad_clip_norm, clip_scope)
             scaler.step(optimizer)
             scaler.update()
         else:
             if args.grad_clip_norm is not None:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip_norm, norm_type=2.0)
+                _clip_gradients(model, args.grad_clip_norm, clip_scope)
             optimizer.step()
 
         batch_time_m.update(time.time() - end)
@@ -291,6 +326,10 @@ def evaluate_regression(model, data, epoch, args):
     logging.info(
         f"Eval Epoch: {epoch}  target_mode={args.target_mode}  val_loss({args.target_mode}): "
         f"{metrics['val_loss']:.6f}  wrist_translation_mse: {dual_metrics['wrist_translation_mse']:.6f}\n"
+        f"  [rigid]        all mse_fingertips: {dual_metrics['rigid_articulation']['all_mse_fingertips']:.6f}  "
+        f"copy_baseline: {dual_metrics['rigid_articulation']['all_copy_baseline_mse_fingertips']:.6f}  |  "
+        f"moving mse_fingertips: {dual_metrics['rigid_articulation'].get('moving_mse_fingertips', float('nan')):.6f}  "
+        f"copy_baseline: {dual_metrics['rigid_articulation'].get('moving_copy_baseline_mse_fingertips', float('nan')):.6f}\n"
         f"  [world]        all mse_fingertips: {dual_metrics['world']['all_mse_fingertips']:.6f}  "
         f"copy_baseline: {dual_metrics['world']['all_copy_baseline_mse_fingertips']:.6f}  |  "
         f"moving mse_fingertips: {dual_metrics['world'].get('moving_mse_fingertips', float('nan')):.6f}  "

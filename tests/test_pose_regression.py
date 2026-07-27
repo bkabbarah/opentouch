@@ -1121,3 +1121,78 @@ def test_tactile_only_has_fewer_parameters_than_pose_tactile():
 def test_invalid_correction_input_raises():
     with pytest.raises(ValueError, match="tactile_correction_input"):
         PoseTransitionRegressor(tactile_correction_input="pose_only_please")
+
+
+# ==========================================================================
+# Gradient-clipping scope: the pose head must not be clipped differently
+# depending on whether a tactile branch exists
+# ==========================================================================
+
+
+def test_per_branch_clipping_leaves_the_pose_head_identical_across_conditions():
+    """THE reason the scope option exists. Global clipping normalises over all
+    parameters at once, so the tactile model's extra ~540k parameters inflate
+    the total norm, clipping fires harder, and the POSE head's updates get
+    scaled differently than in the pose-only arm. Part of any measured
+    difference is then optimisation, not tactile.
+
+    Constructs a pose-only model and a tactile model whose pose heads are
+    identical with identical pose gradients, then checks what each clipping
+    scope does to those gradients.
+    """
+    from opentouch_train.regression_train import _clip_gradients
+
+    torch.manual_seed(0)
+    pose_only = PoseTransitionRegressor(use_tactile=False)
+    tactile = PoseTransitionRegressor(
+        use_tactile=True, tactile_correction_input="tactile_only"
+    )
+    tactile.head.load_state_dict(pose_only.head.state_dict())
+
+    def seed_grads(model, tactile_scale):
+        torch.manual_seed(1)
+        for name, param in model.named_parameters():
+            if name.startswith(("tactile_encoder", "tactile_head", "gate")):
+                param.grad = torch.randn_like(param) * tactile_scale
+            else:
+                torch.manual_seed(2)
+                param.grad = torch.ones_like(param) * 0.05
+
+    # Big tactile gradients: exactly the regime where global clipping bites.
+    seed_grads(pose_only, 0.0)
+    seed_grads(tactile, 5.0)
+    _clip_gradients(pose_only, 1.0, "per_branch")
+    _clip_gradients(tactile, 1.0, "per_branch")
+    for (name, a), (_, b) in zip(
+        pose_only.head.named_parameters(), tactile.head.named_parameters()
+    ):
+        assert torch.allclose(a.grad, b.grad, atol=1e-6), (
+            f"per_branch clipping changed the pose head's gradient for {name} "
+            "depending on whether a tactile branch exists"
+        )
+
+    # And the contrast: global clipping DOES change them.
+    seed_grads(pose_only, 0.0)
+    seed_grads(tactile, 5.0)
+    _clip_gradients(pose_only, 1.0, "global")
+    _clip_gradients(tactile, 1.0, "global")
+    differs = any(
+        not torch.allclose(a.grad, b.grad, atol=1e-6)
+        for (_, a), (_, b) in zip(
+            pose_only.head.named_parameters(), tactile.head.named_parameters()
+        )
+    )
+    assert differs, (
+        "sanity: global clipping should couple the branches, which is why it is "
+        "the wrong scope for this comparison"
+    )
+
+
+def test_clip_scope_is_validated():
+    from opentouch_train.regression_train import _clip_gradients
+
+    model = PoseTransitionRegressor(use_tactile=False)
+    for param in model.parameters():
+        param.grad = torch.ones_like(param)
+    with pytest.raises(ValueError, match="grad_clip_scope"):
+        _clip_gradients(model, 1.0, "whole_model")
