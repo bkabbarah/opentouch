@@ -9,24 +9,24 @@ Ready-to-paste text is in `ABSTRACT_FINAL.txt` (196 words).
 
 ## The abstract
 
-> A wide range of sensory signals helps dexterous robots manipulate objects
-> reliably. First-person video captures the appearance of objects and
-> interaction but not contact, force, or grip, leaving gaps that tactile
-> information can fill. OpenTouch aligns touch, egocentric video, and hand
-> pose in a shared representation using contrastive learning. We first improve
-> alignment, then ask whether touch predicts how a hand will move next.
-> Replacing average pooling with a temporal pose encoder improves tactile-to-
-> pose retrieval 2.7x, from 16.8 to 45.5 mAP. To test prediction, we isolate
-> finger articulation from whole-hand motion and decode its future direction
-> from touch available only up to the present moment. Touch predicts that
-> direction well above chance, at AUC 0.60 to 0.69, while shuffled-touch
-> controls remain at AUC 0.50. Adding touch to a pose encoder with the same
-> temporal history still improves prediction, across horizons from 67 to 533
-> milliseconds, and helps most when predicting whether the fingers are about
-> to curl. Touch therefore supplies information that hand kinematics alone do
-> not carry, revealing not just what a hand is holding but how it is about to
-> reshape. A robot that feels contact may know where a hand is going, not just
-> where it has been.
+> Many sensory signals help dexterous robots manipulate objects reliably.
+> First-person video captures the appearance of objects and interaction but
+> not contact, force, or grip, leaving gaps that tactile information can fill.
+> OpenTouch aligns touch, egocentric video, and hand pose in a shared
+> representation using contrastive learning. We first improve alignment, then
+> ask whether touch predicts how a hand will move next. Replacing average
+> pooling with a temporal pose encoder improves tactile-to-pose retrieval
+> 2.7x, from 16.8 to 45.5 mAP. To test prediction, we isolate finger
+> articulation from whole-hand motion and decode its future direction from
+> touch available only up to the present moment. Touch predicts that direction
+> well above chance, at AUC 0.60 to 0.69, while shuffled-touch controls remain
+> at AUC 0.50. Adding touch to a pose encoder with the same temporal history
+> still improves prediction, across horizons from 67 to 533 milliseconds, and
+> helps most when predicting whether the fingers are about to curl. Touch
+> therefore supplies information that hand kinematics alone do not carry,
+> revealing not just what a hand is holding but how it is about to reshape. A
+> robot that feels contact may know where a hand is going, not just where it
+> has been.
 
 ---
 
@@ -69,11 +69,18 @@ Per-axis marginal, corrected target:
 | 8 | +0.0171 | +0.0126 | **+0.0187** |
 | 16 | +0.0132 | +0.0114 | **+0.0198** |
 
-**Flexion is the strongest axis at every horizon, and it is the only one that
-grows monotonically with distance.** That is the best mechanistic outcome
-available: a pressure sensor should know most about whether fingers are about
-to curl, and it does. All shuffled-touch marginals are negative (−0.0016 to
-−0.0058), which is the expected penalty for the extra 64 dimensions.
+**Flexion (curl) is the top axis at all four horizons.** Read that as a
+consistent ordering of point estimates, not a separated effect: the gap over
+radial is only +0.0011 / +0.0005 / +0.0015 at k=2/4/8, and the k=8 confidence
+intervals for curl [+0.0064, +0.0311] and radial [+0.0040, +0.0314] overlap
+almost entirely. Only at k=16 is the gap meaningful (+0.0066), where curl is
+also the single largest cell in the table. So "helps most on flexion" is
+supportable as a ranking and as a mechanism (a pressure sensor should know
+most about whether fingers are about to curl), but it is NOT established that
+curl exceeds radial. Do not defend it as a significant difference.
+
+All shuffled-touch marginals are negative (-0.0016 to -0.0058), the expected
+penalty for the extra 64 dimensions.
 
 ## Confidence intervals
 
