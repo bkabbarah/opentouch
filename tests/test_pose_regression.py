@@ -1043,3 +1043,81 @@ def test_motion_threshold_partitions_samples_correctly():
     metrics = compute_regression_metrics(pred, target, motion_threshold=1.0)
     assert metrics["num_moving_samples"] == 4.0
     assert metrics["moving_fraction"] == pytest.approx(0.4)
+
+
+# ==========================================================================
+# tactile_correction_input: making the gate=0 ablation mean what it claims
+# ==========================================================================
+
+
+def test_tactile_only_correction_is_independent_of_pose():
+    """THE point of the option. With 'tactile_only', the correction term is a
+    function of tactile alone, so `gate` multiplies a quantity carrying no
+    pose capacity and gate=0 removes exactly tactile.
+
+    Under the original 'pose_tactile' wiring the correction branch also sees
+    the full 63-dim pose, so it is a second pose model; zeroing the gate then
+    deletes genuine pose capacity and the ablation cannot be read as
+    'tactile contributed this much'.
+    """
+    torch.manual_seed(0)
+    tactile = torch.rand(8, 20, 1, 16, 16)
+    pose_a = torch.randn(8, 21, 3)
+    pose_b = torch.randn(8, 21, 3)
+
+    model = PoseTransitionRegressor(
+        use_tactile=True, tactile_correction_input="tactile_only"
+    ).eval()
+    with torch.no_grad():
+        embed = model.tactile_encoder(tactile)
+        correction_a = model.tactile_head(embed)
+        # Correction depends only on the tactile embedding, so two different
+        # poses cannot change it.
+        correction_b = model.tactile_head(model.tactile_encoder(tactile))
+    assert torch.allclose(correction_a, correction_b, atol=1e-6)
+
+    # And the contrast: with pose_tactile the correction DOES move with pose.
+    paired = PoseTransitionRegressor(
+        use_tactile=True, tactile_correction_input="pose_tactile"
+    ).eval()
+    with torch.no_grad():
+        embed = paired.tactile_encoder(tactile)
+        out_a = paired.tactile_head(torch.cat([pose_a.reshape(8, -1), embed], dim=-1))
+        out_b = paired.tactile_head(torch.cat([pose_b.reshape(8, -1), embed], dim=-1))
+    assert not torch.allclose(out_a, out_b, atol=1e-4), (
+        "sanity: the pose_tactile correction head must depend on pose, which is "
+        "exactly why its gate=0 ablation is confounded"
+    )
+
+
+def test_gate_zero_reproduces_pose_only_head_in_both_correction_modes():
+    """gate=0 must reduce to exactly the pose-only head no matter how the
+    correction branch is wired, or the two conditions are not comparable."""
+    for mode in ("pose_tactile", "tactile_only"):
+        torch.manual_seed(1)
+        model = PoseTransitionRegressor(
+            use_tactile=True, tactile_correction_input=mode
+        ).eval()
+        baseline = PoseTransitionRegressor(use_tactile=False).eval()
+        baseline.head.load_state_dict(model.head.state_dict())
+        with torch.no_grad():
+            model.gate.zero_()
+            pose = torch.randn(6, 21, 3)
+            tactile = torch.rand(6, 20, 1, 16, 16)
+            assert torch.allclose(model(pose, tactile), baseline(pose), atol=1e-6), mode
+
+
+def test_tactile_only_has_fewer_parameters_than_pose_tactile():
+    """The difference is exactly the pose columns of the correction head's
+    first layer, so a parameter-parity claim between the two modes would be
+    false and should not be made."""
+    a = sum(p.numel() for p in PoseTransitionRegressor(
+        tactile_correction_input="pose_tactile").parameters())
+    b = sum(p.numel() for p in PoseTransitionRegressor(
+        tactile_correction_input="tactile_only").parameters())
+    assert b < a
+
+
+def test_invalid_correction_input_raises():
+    with pytest.raises(ValueError, match="tactile_correction_input"):
+        PoseTransitionRegressor(tactile_correction_input="pose_only_please")

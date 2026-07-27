@@ -201,6 +201,7 @@ def main(args):
         use_tactile=not args.pose_only,
         tactile_emb_dim=args.tactile_emb_dim,
         hidden_dim=args.hidden_dim,
+        tactile_correction_input=args.tactile_correction_input,
     ).to(device)
 
     random_seed(args.seed, args.rank)
@@ -216,9 +217,16 @@ def main(args):
             # DATASET pairs with which window's pose), so this model is
             # architecturally IDENTICAL to a plain tactile+pose model built
             # with the same tactile_emb_dim/hidden_dim.
-            reference = PoseTransitionRegressor(
-                use_tactile=True, tactile_emb_dim=args.tactile_emb_dim, hidden_dim=args.hidden_dim,
-            )
+            # fork_rng: constructing this reference model consumes global
+            # torch RNG, which would otherwise give shuffled runs different
+            # dropout masks and a different DataLoader shuffle order than the
+            # tactile+pose runs they are meant to be paired with.
+            with torch.random.fork_rng(devices=[]):
+                reference = PoseTransitionRegressor(
+                    use_tactile=True, tactile_emb_dim=args.tactile_emb_dim,
+                    hidden_dim=args.hidden_dim,
+                    tactile_correction_input=args.tactile_correction_input,
+                )
             reference_params = sum(p.numel() for p in reference.parameters() if p.requires_grad)
             assert num_params == reference_params, (
                 f"shuffle_tactile model has {num_params:,} params but a plain tactile+pose "

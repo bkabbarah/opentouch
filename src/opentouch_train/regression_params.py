@@ -58,9 +58,24 @@ def parse_regression_args(args):
              "reported on ALL samples regardless -- see opentouch.regression_metrics.",
     )
     parser.add_argument(
+        "--tactile-correction-input", type=str, default="pose_tactile",
+        choices=["pose_tactile", "tactile_only"],
+        help="What the residual correction head sees. 'pose_tactile' (default, and "
+             "what every historical run used) also feeds it the full 63-dim pose, "
+             "which makes the correction branch a second POSE model -- so zeroing the "
+             "gate deletes pose capacity and the ablation cannot be read as tactile's "
+             "contribution. 'tactile_only' makes the correction a function of tactile "
+             "alone, so gate=0 removes exactly tactile and nothing else. Use "
+             "'tactile_only' for any run whose gate ablation will be reported.",
+    )
+    parser.add_argument(
         "--target-mode", type=str, default="articulation_delta",
-        choices=["world_delta", "articulation_delta"],
-        help="What the model is trained to predict. 'articulation_delta' (default) "
+        choices=["world_delta", "articulation_delta", "rigid_articulation"],
+        help="What the model is trained to predict. 'rigid_articulation' additionally "
+             "removes whole-hand ROTATION and uses palm axes, which is the only one "
+             "of the three that isolates finger motion: rotation is ~95% of "
+             "articulation_delta's energy at the median sample. "
+             "'articulation_delta' (default) "
              "removes the wrist's own translation from the target, since ~76%% of "
              "the raw world_delta is whole-hand/arm translation tactile has no "
              "reason to predict (see opentouch.pose_regression module docstring). "

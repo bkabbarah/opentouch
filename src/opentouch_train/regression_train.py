@@ -17,8 +17,17 @@ except ImportError:
     wandb = None
 
 from opentouch import get_input_dtype
+from opentouch.articulation_frames import (
+    decompose_rigid,
+    hand_frame_basis,
+    to_hand_frame,
+)
 from opentouch.pose_regression import decompose_world_delta
-from opentouch.regression_metrics import compute_dual_target_metrics
+from opentouch.regression_metrics import (
+    _metrics_given_mask,
+    compute_dual_target_metrics,
+    fingertip_displacement,
+)
 from opentouch_train.distributed import is_master
 from opentouch_train.precision import get_autocast
 from opentouch_train.train import AverageMeter, unwrap_model, backward
@@ -44,6 +53,20 @@ def _extract_batch(batch, use_tactile, device, input_dtype):
     world_delta = batch["world_delta"].to(**kwargs)
     _, articulation_delta = decompose_world_delta(world_delta)
 
+    # Third target space: whole-hand ROTATION removed as well as translation,
+    # expressed in palm axes. articulation_delta keeps rigid rotation, which is
+    # ~95% of its energy at the median sample, so a model trained against it is
+    # mostly learning to extrapolate wrist re-orientation. pose_future is
+    # recoverable from what the dataset already emits, so no dataset change is
+    # needed. Done in float32 regardless of autocast: the Kabsch SVD is
+    # ill-conditioned on near-planar hands in half precision.
+    with torch.autocast(device_type=pose_t.device.type, enabled=False):
+        pose_t32 = pose_t.float()
+        pose_future32 = pose_t32 + world_delta.float()
+        _, rigid_residual = decompose_rigid(pose_t32, pose_future32)
+        rigid_delta = to_hand_frame(rigid_residual, hand_frame_basis(pose_t32))
+    rigid_delta = rigid_delta.to(world_delta.dtype)
+
     if use_tactile:
         assert "tactile_pressure" in batch, (
             "use_tactile=True but the batch has no tactile_pressure key -- the "
@@ -62,15 +85,32 @@ def _extract_batch(batch, use_tactile, device, input_dtype):
             "include_tactile=False for --pose-only runs"
         )
         tactile_pressure = None
-    return pose_t, world_delta, articulation_delta, tactile_pressure
+    return pose_t, world_delta, articulation_delta, rigid_delta, tactile_pressure
 
 
-def _select_target(world_delta: torch.Tensor, articulation_delta: torch.Tensor, target_mode: str) -> torch.Tensor:
+def _select_target(
+    world_delta: torch.Tensor,
+    articulation_delta: torch.Tensor,
+    rigid_delta: torch.Tensor,
+    target_mode: str,
+) -> torch.Tensor:
+    """Which delta space the loss is computed in.
+
+    'rigid_articulation' is the corrected target: whole-hand rotation removed
+    and expressed in palm axes. The frozen-feature probes show tactile's
+    contribution is roughly ten times larger against this space than against
+    'articulation_delta', which retains the rotation.
+    """
     if target_mode == "articulation_delta":
         return articulation_delta
     if target_mode == "world_delta":
         return world_delta
-    raise ValueError(f"Unknown target_mode {target_mode!r}, expected 'world_delta' or 'articulation_delta'")
+    if target_mode == "rigid_articulation":
+        return rigid_delta
+    raise ValueError(
+        f"Unknown target_mode {target_mode!r}, expected 'world_delta', "
+        "'articulation_delta' or 'rigid_articulation'"
+    )
 
 
 def _is_val_epoch(epoch: int, val_frequency: int, total_epochs: int) -> bool:
@@ -107,10 +147,10 @@ def train_one_epoch_regression(model, data, epoch, optimizer, scaler, scheduler,
         if not args.skip_scheduler and scheduler is not None:
             scheduler(step)
 
-        pose_t, world_delta, articulation_delta, tactile_pressure = _extract_batch(
+        pose_t, world_delta, articulation_delta, rigid_delta, tactile_pressure = _extract_batch(
             batch, use_tactile, device, input_dtype,
         )
-        target = _select_target(world_delta, articulation_delta, args.target_mode)
+        target = _select_target(world_delta, articulation_delta, rigid_delta, args.target_mode)
 
         data_time_m.update(time.time() - end)
         optimizer.zero_grad()
@@ -199,10 +239,10 @@ def evaluate_regression(model, data, epoch, args):
     eval_model.eval()
 
     dataloader = data["val"].dataloader
-    all_pred, all_world, all_articulation = [], [], []
+    all_pred, all_world, all_articulation, all_rigid = [], [], [], []
     with torch.inference_mode():
         for batch in dataloader:
-            pose_t, world_delta, articulation_delta, tactile_pressure = _extract_batch(
+            pose_t, world_delta, articulation_delta, rigid_delta, tactile_pressure = _extract_batch(
                 batch, use_tactile, device, input_dtype,
             )
             with autocast():
@@ -210,16 +250,32 @@ def evaluate_regression(model, data, epoch, args):
             all_pred.append(pred_delta.float().cpu())
             all_world.append(world_delta.float().cpu())
             all_articulation.append(articulation_delta.float().cpu())
+            all_rigid.append(rigid_delta.float().cpu())
 
     all_pred_t = torch.cat(all_pred)
     all_world_t = torch.cat(all_world)
     all_articulation_t = torch.cat(all_articulation)
+    all_rigid_t = torch.cat(all_rigid)
 
     dual_metrics = compute_dual_target_metrics(
         all_pred_t, all_world_t, all_articulation_t, motion_threshold=args.motion_threshold,
     )
+    # The rigid space is scored on the SAME moving subset as the other two --
+    # the mask comes from articulation displacement in every case -- so the
+    # eval population is identical to every previously reported run and the
+    # numbers stay comparable.
+    moving_mask = None
+    if args.motion_threshold is not None:
+        moving_mask = fingertip_displacement(all_articulation_t) >= args.motion_threshold
+    dual_metrics["rigid_articulation"] = _metrics_given_mask(
+        all_pred_t, all_rigid_t, moving_mask, args.motion_threshold,
+    )
     metrics = _flatten_dual_metrics(dual_metrics)
-    trained_space = dual_metrics[args.target_mode.replace("_delta", "")]
+    for key, value in dual_metrics["rigid_articulation"].items():
+        metrics["rigid_articulation_%s" % key] = value
+    trained_space = dual_metrics.get(
+        args.target_mode, dual_metrics.get(args.target_mode.replace("_delta", ""))
+    )
     metrics["val_loss"] = trained_space["all_mse_all_joints"]
     metrics["epoch"] = epoch
 

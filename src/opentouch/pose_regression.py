@@ -161,6 +161,7 @@ class PoseTransitionRegressor(nn.Module):
         use_tactile: bool = True,
         tactile_emb_dim: int = 64,
         hidden_dim: int = 128,
+        tactile_correction_input: str = "pose_tactile",
     ) -> None:
         super().__init__()
         self.use_tactile = use_tactile
@@ -187,12 +188,31 @@ class PoseTransitionRegressor(nn.Module):
 
         if use_tactile:
             self.tactile_encoder = CNNetEmbedding(emb_dim=tactile_emb_dim)
-            # Correction head sees pose_flat too (so the correction can be
-            # conditioned on the current articulation, not tactile alone),
-            # but through its OWN BatchNorm over its OWN input_dim -- never
-            # the pose-only head's BatchNorm(63), so tactile can never
-            # rescale the pose path's inputs (see module docstring).
-            tactile_head_input_dim = POSE_DIM + tactile_emb_dim
+            # WHAT THE CORRECTION HEAD SEES, and why it is now a choice.
+            #
+            # 'pose_tactile' (the original) feeds pose_flat alongside the
+            # tactile embedding so the correction can be conditioned on the
+            # current articulation. That is defensible for accuracy, but it
+            # makes the gate=0 ablation UNINTERPRETABLE: the correction branch
+            # is then a second pose model, so zeroing the gate deletes genuine
+            # pose capacity, not tactile contribution. A branch fed pure noise
+            # would show the same apparent "damage".
+            #
+            # 'tactile_only' feeds the tactile embedding alone. The gate then
+            # multiplies a quantity that depends on nothing but tactile, so
+            # gate=0 removes exactly tactile and nothing else, and the
+            # ablation measures what it claims to.
+            if tactile_correction_input not in ("pose_tactile", "tactile_only"):
+                raise ValueError(
+                    "tactile_correction_input must be 'pose_tactile' or 'tactile_only', "
+                    f"got {tactile_correction_input!r}"
+                )
+            self.tactile_correction_input = tactile_correction_input
+            tactile_head_input_dim = (
+                POSE_DIM + tactile_emb_dim
+                if tactile_correction_input == "pose_tactile"
+                else tactile_emb_dim
+            )
             self.tactile_head = nn.Sequential(
                 nn.BatchNorm1d(tactile_head_input_dim),
                 nn.Linear(tactile_head_input_dim, hidden_dim),
@@ -214,6 +234,7 @@ class PoseTransitionRegressor(nn.Module):
             self.tactile_encoder = None
             self.tactile_head = None
             self.gate = None
+            self.tactile_correction_input = tactile_correction_input
 
     def forward(
         self,
@@ -233,7 +254,10 @@ class PoseTransitionRegressor(nn.Module):
                 "use_tactile=True requires a tactile_pressure tensor, got None"
             )
             tactile_embed = self.tactile_encoder(tactile_pressure)
-            correction_input = torch.cat([pose_flat, tactile_embed], dim=-1)
+            if self.tactile_correction_input == "pose_tactile":
+                correction_input = torch.cat([pose_flat, tactile_embed], dim=-1)
+            else:
+                correction_input = tactile_embed
             delta_correction = self.tactile_head(correction_input).view(b, NUM_KEYPOINTS, COORD_DIM)
             return delta_pose + self.gate * delta_correction
         else:
