@@ -217,9 +217,9 @@ def section_retrieval(lines):
         if not data:
             continue
         label = os.path.basename(path)[len("results_retrieval_scene_"):-len(".json")]
-        for key, value in data.items():
-            if isinstance(value, dict) and "mAP" in value and key == "tactile_to_pose":
-                rows[label] = value["mAP"]
+        # eval.py writes a flat dict: "tactile_to_pose_mAP", not a nested one.
+        if "tactile_to_pose_mAP" in data:
+            rows[label] = data["tactile_to_pose_mAP"]
     if not rows:
         lines.append("**PENDING.**\n")
         return
