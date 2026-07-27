@@ -244,3 +244,11 @@ assets/MANO_RIGHT.pkl
 results_*.json
 eval_output.txt
 worst_queries.csv
+
+# Analysis artifacts written into the repo by cluster runs. Untracked files
+# make regression_main record git_dirty=True, which destroys the value of that
+# provenance field -- it should mean "the source differed from the recorded
+# commit", not "results exist".
+MORNING_REPORT.md
+gate0_*.json
+assets/B_matrices_shuffled.npz
