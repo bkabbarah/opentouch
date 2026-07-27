@@ -53,10 +53,18 @@ from tactile_direction_probe import (
 )
 from tactile_subset_probe import clip_clustered_bootstrap, cluster_ids_for_windows
 
-# Lags into the causal window, measured back from t. Dense recent history so
-# velocity and acceleration are linearly recoverable, plus long context.
-# 8 lags x 63 coords = 504 dims, tractable for a linear probe at n ~ 116k.
+# Lags into the causal window, measured back from t.
+#
+# Fed as [p(t), p(t)-p(t-1), p(t)-p(t-2), ...] rather than as raw stacked
+# frames. That is an invertible linear map of the stacked frames, so the two
+# span exactly the same function class and a converged solution is identical
+# -- but stacked lagged positions are near-duplicates of each other, which
+# leaves lbfgs badly conditioned. The first version of this script hit the
+# iteration limit on 177 of 240 fits, which made the raw-pose baseline look
+# artificially weak and inflated the apparent tactile gain. Differences are
+# small and far less collinear, so the same information optimises cleanly.
 LAGS = [0, 1, 2, 3, 5, 8, 12, 19]
+MAX_ITER = 5000
 AXES = ("radial", "spread", "curl")
 
 parser = argparse.ArgumentParser()
@@ -117,13 +125,14 @@ def prepare(split_name, threshold):
     # Raw kinematic history: wrist-centred pose at each lag. Every index is
     # clamped at 0 and never exceeds t, so no future frame can enter.
     windows_t = torch.as_tensor(window_idx)
-    lagged = []
+    frames = []
     for lag in LAGS:
         frame_idx = np.clip(t_values - lag, 0, None)
         gathered = dataset._pose[windows_t, torch.as_tensor(frame_idx)]
         gathered = gathered - gathered[:, WRIST_INDEX : WRIST_INDEX + 1, :]
-        lagged.append(gathered.reshape(gathered.shape[0], -1).numpy())
-    pose_raw = np.hstack(lagged)
+        frames.append(gathered.reshape(gathered.shape[0], -1).numpy())
+    # frames[0] is p(t); the rest become displacements from it.
+    pose_raw = np.hstack([frames[0]] + [frames[0] - f for f in frames[1:]])
 
     prepared = {
         "target": targets["rigid_removed_handframe"],
@@ -171,8 +180,15 @@ moving_mask = val["moving"]
 eval_features = {name: y[moving_mask] for name, (_, y) in scaled.items()}
 clusters = val["clusters"][moving_mask]
 
+import warnings  # noqa: E402
+
+from sklearn.exceptions import ConvergenceWarning  # noqa: E402
 from sklearn.linear_model import LogisticRegression  # noqa: E402
 from sklearn.metrics import roc_auc_score  # noqa: E402
+
+# Counted and reported, never swallowed: a non-converged baseline looks
+# artificially weak and would inflate the measured tactile contribution.
+non_converged = {}
 
 report = {
     "horizon_k": args.horizon_k,
@@ -195,8 +211,12 @@ for axis_index, axis_name in enumerate(AXES):
             continue
         scores = {}
         for name in CONDITIONS:
-            model = LogisticRegression(max_iter=1000, random_state=42)
-            model.fit(scaled[name][0], y_train)
+            model = LogisticRegression(max_iter=MAX_ITER, random_state=42)
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter('always', ConvergenceWarning)
+                model.fit(scaled[name][0], y_train)
+                if any(issubclass(w.category, ConvergenceWarning) for w in caught):
+                    non_converged[name] = non_converged.get(name, 0) + 1
             scores[name] = model.predict_proba(eval_features[name])[:, 1]
             aucs[name].append(roc_auc_score(y_val, scores[name]))
         comparisons["vs_raw_pose"].append(clip_clustered_bootstrap(
@@ -235,6 +255,15 @@ for axis_index, axis_name in enumerate(AXES):
                e["n_joints_ci_excludes_zero"], e["n_joints"]),
             flush=True,
         )
+
+report["non_converged_fits"] = non_converged
+total_bad = sum(non_converged.values())
+if total_bad:
+    print("\n!! %d fits hit the iteration limit: %s" % (total_bad, non_converged), flush=True)
+    print("!! Treat these numbers as provisional; a non-converged baseline inflates "
+          "the apparent tactile gain.", flush=True)
+else:
+    print("\nAll fits converged.", flush=True)
 
 with open(args.output, "w") as handle:
     json.dump(report, handle, indent=2)
