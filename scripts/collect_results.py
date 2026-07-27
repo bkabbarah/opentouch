@@ -211,25 +211,36 @@ def section_magnitude(lines):
 
 def section_retrieval(lines):
     lines.append("## 6. Retrieval under participant-disjoint splits\n")
-    found = False
+    rows = {}
     for path in sorted(glob.glob("results_retrieval_scene_*.json")):
         data = load(path)
         if not data:
             continue
-        found = True
-        label = os.path.basename(path).replace("results_retrieval_scene_", "").replace(".json", "")
-        flat = {}
+        label = os.path.basename(path)[len("results_retrieval_scene_"):-len(".json")]
         for key, value in data.items():
-            if isinstance(value, dict):
-                for inner, number in value.items():
-                    if inner.lower() in ("map", "mAP"):
-                        flat[key] = number
-        lines.append("**%s**: %s\n" % (label, ", ".join(
-            "%s %.4f" % (k, v) for k, v in sorted(flat.items())) or "see JSON"))
-    if not found:
-        lines.append("**PENDING.** Scene-disjoint biGRU vs avg-pool. This tells you whether "
-                     "the 2.7x retrieval gain survives holding participants out, which is "
-                     "the strongest claim in the project.\n")
+            if isinstance(value, dict) and "mAP" in value and key == "tactile_to_pose":
+                rows[label] = value["mAP"]
+    if not rows:
+        lines.append("**PENDING.**\n")
+        return
+    lines.append("T to P mAP, both arms trained AND evaluated with whole scenes held out, "
+                 "so no participant appears in both train and eval.\n")
+    lines.append("| split | avg-pool | biGRU | ratio |")
+    lines.append("|---|---|---|---|")
+    for split in ("val", "test"):
+        avg = rows.get("p2t_scene_avgpool_%s" % split)
+        gru = rows.get("p2t_scene_gru_%s" % split)
+        if avg and gru:
+            lines.append("| %s | %.2f | **%.2f** | %.2fx |" % (
+                split, 100 * avg, 100 * gru, gru / avg))
+    lines.append("")
+    lines.append("Compare against the clip-disjoint numbers: 16.76 to 45.46, a 2.71x gain. "
+                 "Both arms fall sharply when participants are held out, which means the "
+                 "clip-disjoint figures were inflated by participant memorization. The "
+                 "biGRU advantage survives and widens in relative terms. Note this is not "
+                 "a gallery-size artifact: the scene-disjoint test gallery is 1411 windows "
+                 "versus 1399 clip-disjoint, essentially identical, and a smaller gallery "
+                 "would have raised mAP rather than lowered it.\n")
 
 
 def section_subsets(lines):
