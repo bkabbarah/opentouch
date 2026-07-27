@@ -56,12 +56,16 @@ FINGERS = {
 COLOURS = ["#fde725", "#7ad151", "#22a884", "#2a788e", "#414487", "#440154"]
 
 
-def canonical_layout(data_path, split_seed, sequence_length):
+def canonical_layout(data_path, split_seed, sequence_length, max_windows=150):
     """(21,2) mean hand in palm coordinates: x along the palm, y across it.
 
     Averaging in the PALM frame rather than the world frame is what makes this
     meaningful -- world-frame averaging over hands at arbitrary orientations
     collapses toward the centroid and produces a blob, not a hand.
+
+    Samples at most `max_windows` evenly spaced windows. A mean hand shape
+    converges in well under a hundred samples, and reading the whole split one
+    window at a time was enough to get this OOM-killed on a loaded box.
     """
     splits = _load_and_split_dataset(data_path, 0.1, 0.1, split_seed)
     dataset = VideoTactilePoseDataset(
@@ -69,7 +73,9 @@ def canonical_layout(data_path, split_seed, sequence_length):
         sequence_length=sequence_length, include_tactile=False,
         include_visual=False, include_pose=True,
     )
-    poses = torch.stack([dataset[i]["hand_landmarks"].squeeze(1)[0] for i in range(len(dataset))])
+    step = max(1, len(dataset) // max_windows)
+    indices = list(range(0, len(dataset), step))[:max_windows]
+    poses = torch.stack([dataset[i]["hand_landmarks"].squeeze(1)[0] for i in indices])
     poses = poses[~hand_frame_degenerate(poses)]
     centered = poses - poses[:, WRIST_INDEX : WRIST_INDEX + 1, :]
     local = torch.einsum("bij,bkj->bki", hand_frame_basis(poses), centered)
