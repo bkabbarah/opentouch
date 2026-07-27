@@ -19,14 +19,14 @@ Ready-to-paste text is in `ABSTRACT_FINAL.txt` (196 words).
 > pose retrieval 2.7x, from 16.8 to 45.5 mAP. To test prediction, we isolate
 > finger articulation from whole-hand motion and decode its future direction
 > from touch available only up to the present moment. Touch predicts that
-> direction well above chance, reaching AUC 0.60 to 0.69, while shuffled-touch
-> controls remain at AUC 0.50. The signal holds against a pose encoder granted
-> identical temporal history, across horizons from 67 to 533 milliseconds, and
-> is clearest when predicting whether the fingers are about to curl. Touch
-> therefore supplies information that hand kinematics alone do not carry,
-> revealing not just what a hand is holding but how that hand is about to
-> reshape. Robots that sense contact could anticipate hand motion rather than
-> react to it.
+> direction well above chance, at AUC 0.60 to 0.69, while shuffled-touch
+> controls remain at AUC 0.50. Adding touch to a pose encoder with the same
+> temporal history still improves prediction, across horizons from 67 to 533
+> milliseconds, and helps most when predicting whether the fingers are about
+> to curl. Touch therefore supplies information that hand kinematics alone do
+> not carry, revealing not just what a hand is holding but how it is about to
+> reshape. A robot that feels contact may know where a hand is going, not just
+> where it has been.
 
 ---
 
