@@ -125,3 +125,35 @@ def test_both_modes_accept_varying_sequence_lengths(frames):
         encoder = PoseEncoder(temporal_mode=mode).eval()
         with torch.no_grad():
             assert encoder(x).shape == (4, 64)
+
+
+def test_mean_mode_applies_no_relu_before_projection():
+    """Upstream avg-pool projects the pooled vector directly. The ReLU arrived
+    with the GRU and was never part of that architecture, so applying it in
+    mean mode both diverges from the published model and handicaps the
+    baseline by zeroing every negative pooled feature. Loading an upstream
+    checkpoint into a ReLU'd mean encoder scores ~10 mAP instead of ~16.8,
+    which is how this was caught.
+
+    Checked behaviourally: with an identity projection, a pooled vector that
+    contains negatives must survive to the output unclipped.
+    """
+    encoder = PoseEncoder(emb_dim=128, temporal_mode="mean").eval()
+    with torch.no_grad():
+        encoder.projection.weight.copy_(torch.eye(128))
+        encoder.projection.bias.zero_()
+        output = encoder(landmarks(batch=16, seed=7))
+    assert (output < 0).any(), (
+        "mean mode output is non-negative everywhere, which means a ReLU is "
+        "being applied before the projection"
+    )
+
+
+def test_gru_mode_does_apply_relu():
+    """The contrast, so the branch above is not simply dead code."""
+    encoder = PoseEncoder(emb_dim=240, temporal_mode="gru").eval()
+    with torch.no_grad():
+        encoder.projection.weight.copy_(torch.eye(240))
+        encoder.projection.bias.zero_()
+        output = encoder(landmarks(batch=16, seed=8))
+    assert (output >= 0).all(), "gru mode should still ReLU before projecting"
