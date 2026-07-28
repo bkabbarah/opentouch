@@ -437,8 +437,35 @@ Full detail with file:line in `AUDIT.md`.
 `ssh bashark@mib.media.mit.edu`, repo `~/scratch/bashar/opentouch-gru`,
 env `~/miniconda3/envs/opentouch/bin/python`, `PYTHONPATH=src`.
 
-**Nothing is running.** Every sweep completed. All result files are on the
-cluster and mirrored to `results/` in the repo (gitignored).
+**RUNNING as of 2026-07-28 12:16:** the participant-disjoint forecasting sweep
+(open question #1), in tmux session `scenefc`.
+
+```
+tmux attach -t scenefc          # live
+cat /tmp/scenefc_master.log     # per-run START/DONE
+```
+
+18 runs, `sf_{frz,frzshuf,pose}_k{8,16}_s{1,2,3}`, launched by
+`scripts/scene_forecast_sweep.sh` as three GPU-pinned streams (one per arm, on
+GPUs 0/1/2). Both the tactile encoder (`logs/p2t_scene_gru`) and the
+regression split are scene-disjoint. On completion it writes
+`results_scene_forecast.json` via `scripts/summarize_scene_forecast.py`, which
+refuses to bless the numbers if any run recorded a non-scene split, if either
+frozen arm was initialised from something other than `p2t_scene_gru`, or if
+the arms disagree on the auto-computed motion threshold.
+
+Confirmed from the smoke run: scene split is **26 scenes → train 20 (2355
+clips) / val 3 (345) / test 3 (258)**, frozen trainable parameters **66,045**
+(identical to §2.17, so the arms stay capacity-matched), eval n = 11,060.
+
+Note the motion threshold shifts from 0.014044 (clip) to 0.013977 (scene)
+because it is the 25th percentile of the *train* split. **The scene-split MSEs
+are therefore not directly comparable to §2.17's clip-split MSEs** — the
+"moving" subset is a slightly different set of windows. Comparisons within the
+sweep are valid; comparisons across the two sweeps are not.
+
+Everything else has completed. All result files are on the cluster and
+mirrored to `results/` in the repo (gitignored).
 
 Completed run families, all in `~/scratch/bashar/opentouch-gru/logs/`:
 
@@ -511,6 +538,31 @@ Everything from the first two versions is closed. What is genuinely left:
 2. **Retrieval bootstrap CIs.** `bootstrap_eval.py` exists and has never been
    run. Retrieval is the SOTA-relative-to-OpenTouch claim and currently has
    only a 3-seed std.
+
+   > **Corrected 2026-07-28.** It should not have been run as it stood — it
+   > would have produced an interval contradicting the methodology used
+   > everywhere else here. Three defects, now fixed:
+   >
+   > - It **resampled individual windows**. Windows overlap by 19 of 20
+   >   frames, so this is the exact error §2.3 documents for the probe, where
+   >   a per-window bootstrap came out ~6x too tight. Now resamples whole
+   >   clips; `--cluster window` reproduces the old behaviour for comparison
+   >   only.
+   > - It **resampled the gallery along with the queries**. mAP is
+   >   gallery-size dependent (§2.1), so that blends a metric artifact into
+   >   the interval, and duplicated gallery rows tie with the correct target
+   >   under `sim >= correct_sims`, inflating ranks. The gallery is now fixed
+   >   and only queries are resampled.
+   > - It had **no `--split-group-by`**, so it could not bootstrap the
+   >   scene-disjoint checkpoints — and §2.18's 4.40x is the number most in
+   >   need of an interval. Now defaults to the checkpoint's recorded split.
+   >
+   > Both statistical properties are pinned in `tests/test_bootstrap_eval.py`,
+   > including the converse guard that clustering widens the interval because
+   > clips differ in difficulty rather than as blanket inflation.
+
+   Still to run, once the sweep in §4 frees the GPUs: clip-disjoint and
+   scene-disjoint, biGRU and avg-pool, val and test.
 3. **Per-joint export at other horizons.** `scripts/export_per_joint.py` has
    been run at k=8 only (`per_joint_k8.{json,csv}`). k=16 is where the curl
    effect is largest.

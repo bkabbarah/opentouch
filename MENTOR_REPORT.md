@@ -229,14 +229,32 @@ That is a mechanism, not a coincidence of numbers.
 
 ## Open items, in priority order
 
-1. **Participant-disjoint forecasting.** Rerun the frozen-encoder experiment
-   with the scene-disjoint encoder and scene-disjoint splits. Needs the
-   pose-only baseline rerun too, since the existing one is clip-split and no
-   longer a valid comparison. ~18 runs. This converts "touch helps" into
-   "touch helps for someone we've never seen."
+1. **Participant-disjoint forecasting — RUNNING.** The frozen-encoder
+   experiment rerun with both the encoder and the split scene-disjoint. 18
+   runs (pose-only is rerun too; the existing baseline is clip-split and no
+   longer a valid comparison). This converts "touch helps" into "touch helps
+   for someone we've never seen."
+
+   Worth flagging: this was recorded as a one-flag rerun, and it was not. The
+   regression pipeline had no scene-split option at all — the flag did not
+   exist and the split function was called without it. Had the flag existed
+   without being forwarded, the run would have quietly produced a clip-split
+   result labelled as scene-split, which is precisely the confound the
+   experiment exists to remove. It is now wired, tested, and in flight.
+
+   One caveat for reading the results when they land: the motion threshold
+   that defines the "moving" subset is the 25th percentile of the *train*
+   split, so it shifts under a scene split (0.014044 → 0.013977). Comparisons
+   *within* the new sweep are valid; comparing its MSEs directly against the
+   clip-split table above is not.
+
 2. **Retrieval confidence intervals.** Retrieval is our strongest claim and
-   currently rests on a 3-seed standard deviation. The bootstrap script exists
-   and has not been run.
+   currently rests on a 3-seed standard deviation. The bootstrap script
+   existed but should not have been run as written: it resampled individual
+   windows rather than clips — the same error that would have made the probe
+   intervals ~6x too tight — and resampled the gallery along with the queries,
+   which matters because mAP here depends on gallery size. Both are fixed and
+   pinned by tests; the runs are queued behind the sweep.
 3. **Per-joint export at k=16**, where the curl effect is largest. Currently
    k=8 only.
 4. **Joint optimization.** Freezing the encoder works, but whether joint
