@@ -118,7 +118,7 @@ def per_sample_errors(ckpt_path, data, split, device, batch_size, workers,
                     pin_memory=True, drop_last=False, collate_fn=regression_collate_fn)
 
     tip = list(FINGERTIP_COLUMNS)
-    errs, copies, disps, clips = [], [], [], []
+    errs, copies, disps, clips, scenes = [], [], [], [], []
     with torch.inference_mode():
         for batch in dl:
             pose_t, _, articulation_delta, rigid_delta, tac = _extract_batch(
@@ -135,6 +135,7 @@ def per_sample_errors(ckpt_path, data, split, device, batch_size, workers,
             # rigid target (regression_train.py:304) -- median L2 over tips.
             disps.append(fingertip_displacement(articulation_delta.float()).cpu())
             clips.extend(f"{s}||{c}" for s, c in zip(batch["scene"], batch["clip_id"]))
+            scenes.extend(batch["scene"])
 
     err = torch.cat(errs).numpy()
     copy_err = torch.cat(copies).numpy()
@@ -145,7 +146,7 @@ def per_sample_errors(ckpt_path, data, split, device, batch_size, workers,
     uniq = {c: i for i, c in enumerate(dict.fromkeys(clips))}
     clip_ids = np.asarray([uniq[c] for c in clips])
 
-    return err, clip_ids, copy_err, disp, gate_value
+    return err, clip_ids, copy_err, disp, gate_value, np.asarray(scenes)
 
 
 def clustered_paired_boot(arm_errs, clip_ids, n_boot, rng):
@@ -192,7 +193,7 @@ def main():
     for k in args.horizons:
         log.info(f"===== horizon k={k}")
         arm_mean_err, gates = {}, {}
-        clip_ids_ref = copy_ref = disp_ref = None
+        clip_ids_ref = copy_ref = disp_ref = scene_ref = None
         gate0_mean_err = {}
 
         for arm in args.arms:
@@ -203,12 +204,12 @@ def main():
                 if not os.path.exists(ck):
                     log.warning(f"  missing {ck}, skipping")
                     continue
-                err, cids, copy_err, disp, gate = per_sample_errors(
+                err, cids, copy_err, disp, gate, scn = per_sample_errors(
                     ck, args.data, args.split, device, args.batch_size, args.workers)
                 per_seed.append(err)
                 gates.setdefault(arm, []).append(gate)
                 if clip_ids_ref is None:
-                    clip_ids_ref, copy_ref, disp_ref = cids, copy_err, disp
+                    clip_ids_ref, copy_ref, disp_ref, scene_ref = cids, copy_err, disp, scn
                 elif len(cids) != len(clip_ids_ref):
                     raise SystemExit(
                         f"{name}: {len(cids)} samples but reference has "
@@ -217,7 +218,7 @@ def main():
                 log.info(f"  {name}: mean={err.mean():.8f} gate={gate}")
 
                 if args.gate_zero and gate is not None:
-                    e0, _, _, _, _ = per_sample_errors(
+                    e0, _, _, _, _, _ = per_sample_errors(
                         ck, args.data, args.split, device, args.batch_size,
                         args.workers, force_gate_zero=True)
                     per_seed_g0.append(e0)
@@ -273,6 +274,24 @@ def main():
         compare("frz", "frzshuf")
         compare("frz", "pose")
         compare("frzshuf", "pose")
+
+        # Per-held-out-scene breakdown. The scene split leaves only three
+        # scenes on each of val and test, so "generalizes to an unseen person"
+        # rests on very few people. Splitting the effect by scene shows
+        # directly how much it varies from one held-out person-location to the
+        # next -- which is the variability a within-split bootstrap cannot see,
+        # and it costs nothing beyond the errors already computed.
+        scenes_here = scene_ref[moving]
+        per_scene = {}
+        for sc in sorted(set(scenes_here.tolist())):
+            m = scenes_here == sc
+            row = {"n_samples": int(m.sum())}
+            for a, b in (("frz", "frzshuf"), ("frz", "pose")):
+                if a in sub and b in sub:
+                    row[f"{a}_vs_{b}_pct"] = float(
+                        (sub[a][m].mean() - sub[b][m].mean()) / sub[b][m].mean() * 100)
+            per_scene[str(sc)] = row
+        entry["per_scene"] = per_scene
         if args.gate_zero:
             compare("frzshuf@gate0", "pose")
             compare("frz@gate0", "pose")
@@ -292,6 +311,12 @@ def main():
             flag = "EXCLUDES 0" if v["excludes_zero"] else "includes 0"
             print(f"  {n:26s} {v['relative_pct']:+7.2f}%  "
                   f"[{v['ci_low_pct']:+7.2f}, {v['ci_high_pct']:+7.2f}]  {flag}")
+        if e.get("per_scene"):
+            print("  --- per held-out scene (how much does it vary by person?) ---")
+            for sc, row in e["per_scene"].items():
+                print(f"  {sc[:30]:32s} n={row['n_samples']:>5}  "
+                      f"frz_vs_frzshuf={row.get('frz_vs_frzshuf_pct', float('nan')):+7.2f}%  "
+                      f"frz_vs_pose={row.get('frz_vs_pose_pct', float('nan')):+7.2f}%")
     print(f"\nWrote {args.out}")
 
 
