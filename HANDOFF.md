@@ -9,12 +9,17 @@ out on the cluster at `~/scratch/bashar/opentouch-gru`).
 
 ---
 
-> **Updated 2026-07-28.** Every open question is now closed, including the
-> forecasting one. The headline change since the first version: with the
-> tactile encoder taken frozen from the retrieval checkpoint, touch **beats
-> pose-only by 11%** at both horizons and beats its capacity-matched shuffled
-> twin by 14-16% (§2.17). That is the practical claim that was unavailable
-> for the whole project. Read §2.17 first, then §2.10 and §2.11.
+> **Updated 2026-07-28 (evening).** Open questions #1-#3 are closed. The
+> headline: with the tactile encoder frozen from a retrieval checkpoint,
+> touch beats its capacity-matched shuffled twin by **15.0% at both horizons
+> even when neither training stage ever saw the evaluation participants**
+> (§2.19). That is the practical claim that was unavailable for the whole
+> project, and it now survives participant hold-out.
+>
+> Read §2.19 first, then §2.17, §2.10 and §2.11. **Quote the shuffled
+> comparison, not the pose-only one** — under participant hold-out the margin
+> over pose-only compresses to 7.0% (k=8) and 3.0% (k=16), while the margin
+> over the capacity-matched control does not move at all.
 
 ## 1. Where things stand in one paragraph
 
@@ -26,7 +31,8 @@ median sample. Isolating true finger articulation and expressing it in a
 palm-anchored frame raises tactile's marginal contribution over a
 matched-temporal pose baseline from +0.0017 to +0.0171 at k=8, and the effect
 holds at all four horizons, under participant-disjoint splits, and with
-clip-clustered confidence intervals excluding zero. Separately, the retrieval
+clip-clustered confidence intervals excluding zero at k=8 (at k=16 only curl's
+interval clears zero -- see §2.21). Separately, the retrieval
 headline had been compared against the *paper's* avg-pool number rather than
 this codebase's own re-run, so the correct figure is 2.7x (16.8 to 45.5), not
 3.4x.
@@ -129,7 +135,8 @@ strength; the published-target effect goes negative. `results_probe_rigid_k8_SCE
 
 Caveat: the frozen encoder was itself trained with clip-level splits, so it
 saw val participants' clips during retrieval training. The fully clean version
-needs the scene-disjoint-trained encoder (see §4).
+using the scene-disjoint-trained encoder is §2.12's row 2 (+0.0225), and the
+forecasting equivalent is §2.19.
 
 ### 2.6 Encoder seed sensitivity (k=8, corrected target, best axis)
 
@@ -172,8 +179,10 @@ for flexion behaviour — the pre-rename hypothesis this very script refuted —
 and index 1 is the abduction axis, which of course fails a flexion test. The
 verdict now tests index 2 (`normal` → curl) for flexion and checks that
 fanning peaks on `flex` → spread; both hold, so it reports `true`. The three
-correlations quoted above were always correct and are unchanged. Rerun
-`scripts/validate_handframe.py` to refresh the stored JSON.
+correlations quoted above were always correct and are unchanged. The stored
+JSON was refreshed on 2026-07-28 and now reads
+`"labels_behave_anatomically": true`, alongside the two component checks
+`curl_behaves_like_a_flexion_axis` and `spread_behaves_like_an_abduction_axis`.
 
 ### 2.9 Regression / forecasting (Phase 2B) — the OLD, superseded runs
 
@@ -405,6 +414,107 @@ architectural claim survives and strengthens.
 
 The earlier 5.36x in §2.13 came from the handicapped baseline. **Use 4.40x.**
 
+### 2.19 Participant-disjoint forecasting — COMPLETE. Open question #1 closed.
+
+18 runs, `sf_{frz,frzshuf,pose}_k{8,16}_s{1,2,3}`. Both the tactile encoder
+(`logs/p2t_scene_gru`) and the regression split are scene-disjoint, so no val
+participant appears anywhere in either training stage. `results_scene_forecast.json`,
+integrity checks passed (all runs scene-split, correct encoder, motion
+threshold consistent within each horizon).
+
+| condition | k=8 | k=16 |
+|---|---|---|
+| **frozen tactile + pose** | **0.000270** | **0.000500** |
+| pose-only | 0.000290 | 0.000515 |
+| frozen shuffled + pose | 0.000317 | 0.000588 |
+| copy-zero | 0.000319 | 0.000622 |
+
+Seed sd 0.000001-0.000005, 3 seeds each.
+
+| comparison | k=8 | k=16 | (clip-split, §2.17) |
+|---|---|---|---|
+| frozen tactile vs **shuffled twin** | **−15.0%** | **−15.0%** | −14.3% / −15.7% |
+| frozen tactile vs pose-only | −7.0% | −3.0% | −11.2% / −11.4% |
+| frozen shuffled vs pose-only | +9.4% | +14.0% | +3.6% / +5.1% |
+| frozen tactile vs copy-zero | −15.5% | −19.7% | −18.4% / −24.2% |
+
+**The load-bearing comparison did not move.** Against the capacity-matched
+shuffled twin — same frozen encoder, same 66,045 trainable parameters, only
+the tactile-to-pose pairing scrambled — touch is worth 15.0% at *both*
+horizons, versus 14.3%/15.7% when the encoder had seen these participants.
+Participant familiarity was not what produced that gap.
+
+**What did change is the branch cost.** Carrying a frozen tactile branch with
+no usable content costs +9.4% / +14.0% under participant hold-out, against
++3.6% / +5.1% before. Real touch still pays that back and profits, but the net
+margin over pose-only compresses from ~11% to 7.0% (k=8) and 3.0% (k=16).
+At k=16 the frz-vs-pose gap is 0.000015 against seed sds of 0.000003-0.000005:
+the condition clusters do not overlap, but with 3 seeds this is not a formal
+test, and it is thin enough that it should not be the sentence anyone quotes.
+
+**Quote the shuffled comparison, not the pose-only one.** It is both the
+stronger claim and the one that survived participant hold-out unchanged.
+
+Caveat that now matters most: the scene split leaves only **3 held-out
+scenes** (train 20 / val 3 / test 3 of 26). Participant generalization is
+being measured over three held-out participant-locations. The effect is
+consistent across seeds and horizons, but the participant base is small.
+
+Not comparable to §2.17's absolute MSEs: the motion threshold defining the
+"moving" subset is the 25th percentile of the *train* split, so it shifts
+(k=8: 0.014044 → 0.013977; k=16: 0.024003). Within-sweep comparisons are
+valid; cross-sweep ones are not.
+
+### 2.20 Retrieval bootstrap CIs — open question #2 closed
+
+Clip-clustered, 1000 draws, fixed gallery (queries resampled only). T→P mAP:
+
+| checkpoint | split | mAP | 95% CI | n windows / clips |
+|---|---|---|---|---|
+| biGRU, clip-disjoint | test | 45.50 | [42.09, 48.65] | 1399 / 296 |
+| biGRU, clip-disjoint | val | 41.02 | [37.91, 44.13] | 1572 / 296 |
+| **biGRU, scene-disjoint** | test | **28.31** | [25.59, 31.01] | 1411 / 257 |
+| **avg-pool, scene-disjoint** | test | **6.46** | [5.45, 7.59] | 1411 / 257 |
+| biGRU, scene-disjoint | val | 29.09 | [26.84, 31.49] | 1530 / 345 |
+| avg-pool, scene-disjoint | val | 7.03 | [6.12, 7.97] | 1530 / 345 |
+
+These reproduce §2.1 and §2.18's point estimates, so the eval path is
+consistent. **The scene-disjoint architectural claim is now interval-backed:
+[25.59, 31.01] against [5.45, 7.59] on test — nowhere near overlapping.** The
+4.40x ratio is safe to quote.
+
+> **Trap, hit and fixed on 2026-07-28.** The first run of these produced
+> `scene_gru` at **72.09** mAP. No retrieval checkpoint in this project
+> records `split_group_by` in its metadata — the field postdates all of them —
+> so `bootstrap_eval.py`'s "default to whatever the checkpoint recorded" path
+> fell through to `clip` and handed the scene-trained model a gallery full of
+> its own training participants. It produced a plausible-looking number that
+> was wrong by 2.5x. The fallback now warns loudly and records
+> `split_group_by_source` in the output JSON, and `scripts/post_sweep.sh`
+> states the split explicitly per checkpoint. **If you see a scene checkpoint
+> scoring above ~30, check that field first.**
+
+### 2.21 Per-joint export at k=16 — open question #3 closed, with a caveat
+
+`per_joint_k16.{json,csv}`. n=6626 moving samples from 288 clips.
+
+| axis | k=8 marginal | k=16 marginal | k=16 CI | k=16 joints CI>0 |
+|---|---|---|---|---|
+| curl | +0.0187 | **+0.0198** | **[+0.0036, +0.0360]** | 14/20 |
+| radial | +0.0171 | +0.0132 | [−0.0046, +0.0320] | 14/20 |
+| spread | +0.0126 | +0.0114 | [−0.0049, +0.0274] | 6/20 |
+
+**At k=16 only curl's interval excludes zero.** k=16 has 6626 samples from 288
+clips against k=8's 11,425 from 295, so the intervals are wider. This is the
+first horizon where the omnibus claim does not hold for every axis, and §2.3's
+CIs were only ever computed at k=8.
+
+This cuts both ways for the curl story. §2.2 says curl's *ordering* advantage
+is not separated and should not be defended — that still stands at k=8. But
+curl is the only axis that survives at the longest horizon, which is a real
+asymmetry rather than a ranking artifact. Say "curl is the only axis whose
+k=16 interval excludes zero", not "curl is the strongest axis".
+
 ---
 
 ## 3. Corrections to earlier claims (all verified)
@@ -437,8 +547,9 @@ Full detail with file:line in `AUDIT.md`.
 `ssh bashark@mib.media.mit.edu`, repo `~/scratch/bashar/opentouch-gru`,
 env `~/miniconda3/envs/opentouch/bin/python`, `PYTHONPATH=src`.
 
-**RUNNING as of 2026-07-28 12:16:** the participant-disjoint forecasting sweep
-(open question #1), in tmux session `scenefc`.
+**Nothing is running as of 2026-07-28 17:30.** The participant-disjoint
+forecasting sweep (§2.19) and the whole post-sweep queue (§2.20, §2.21) are
+complete. Left here because the launch recipe is the reusable part.
 
 ```
 tmux attach -t scenefc          # live
@@ -509,9 +620,16 @@ Tests: 190+, all passing. `python -m pytest tests/ -q`.
 
 ## 6. Open questions
 
-Everything from the first two versions is closed. What is genuinely left:
+Open questions #1, #2 and #3 are now CLOSED -- see §2.19, §2.20, §2.21. The
+history below is kept because in all three cases the recorded description of
+the work was wrong in a way that mattered, and that pattern is worth carrying
+forward: **each was logged as "just run the existing script", and none of them
+was.** #1 needed a CLI flag that did not exist, #2's script would have produced
+a statistically invalid interval, and #2's first corrected run still silently
+scored a scene model on a clip gallery. Re-derive before trusting a queued
+task's description.
 
-1. **Participant-disjoint frozen-encoder forecasting.** §2.17 used the
+1. **[CLOSED — see §2.19]** Participant-disjoint frozen-encoder forecasting. §2.17 used the
    clip-disjoint retrieval checkpoint, so the encoder saw val participants'
    clips during retrieval training. The scene-disjoint biGRU checkpoint
    (`logs/p2t_scene_gru`, `split_group_by: scene` confirmed in its
@@ -535,7 +653,7 @@ Everything from the first two versions is closed. What is genuinely left:
    too, since the existing `rr_pose_*` baselines are clip-split and are no
    longer a valid comparison. Arms are `frz` / `frzshuf` / `pose`, k ∈ {8,16},
    3 seeds.
-2. **Retrieval bootstrap CIs.** `bootstrap_eval.py` exists and has never been
+2. **[CLOSED — see §2.20]** Retrieval bootstrap CIs. `bootstrap_eval.py` had never been
    run. Retrieval is the SOTA-relative-to-OpenTouch claim and currently has
    only a 3-seed std.
 
@@ -561,12 +679,11 @@ Everything from the first two versions is closed. What is genuinely left:
    > including the converse guard that clustering widens the interval because
    > clips differ in difficulty rather than as blanket inflation.
 
-   Still to run, once the sweep in §4 frees the GPUs: clip-disjoint and
-   scene-disjoint, biGRU and avg-pool, val and test.
-3. **Per-joint export at other horizons.** `scripts/export_per_joint.py` has
-   been run at k=8 only (`per_joint_k8.{json,csv}`). k=16 is where the curl
-   effect is largest.
-4. **A jointly-optimised model.** §2.17 freezes the encoder. Whether joint
+   All six runs complete; results and the trap they exposed are in §2.20.
+3. **[CLOSED — see §2.21]** Per-joint export at k=16. Run; `per_joint_k16.{json,csv}`.
+   Curl is indeed largest at k=16 (+0.0198) and is the *only* axis whose k=16
+   interval excludes zero.
+4. **THE ONE GENUINELY OPEN ITEM. A jointly-optimised model.** §2.17 and §2.19 freeze the encoder. Whether joint
    optimisation can beat it, given more data or stronger regularisation, is
    unknown.
 

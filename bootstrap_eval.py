@@ -180,7 +180,24 @@ def main():
             "will not be the split this model was trained against.",
             args.split_group_by, meta["split_group_by"],
         )
-    log.info(f"Bootstrapping with split_group_by={split_group_by}, cluster unit={args.cluster}")
+    # No retrieval checkpoint in this project actually records split_group_by --
+    # the field postdates all of them. Falling back to 'clip' silently is how a
+    # scene-trained model gets scored on a gallery full of its own training
+    # participants: p2t_scene_gru read 72.09 mAP that way instead of its true
+    # 28.31. The fallback is still the historical default, but it is never
+    # allowed to be quiet again.
+    if not args.split_group_by and not meta.get("split_group_by"):
+        log.warning(
+            "This checkpoint does not record split_group_by, so 'clip' is being ASSUMED. "
+            "If it was trained scene-disjoint, pass --split-group-by scene explicitly -- "
+            "otherwise its gallery contains participants it trained on and the mAP is "
+            "inflated, not merely approximate."
+        )
+        split_group_by_source = "assumed (checkpoint records none)"
+    else:
+        split_group_by_source = "cli" if args.split_group_by else "checkpoint"
+    log.info(f"Bootstrapping with split_group_by={split_group_by} "
+             f"({split_group_by_source}), cluster unit={args.cluster}")
 
     dataset = VideoTactilePoseDataset(
         hf_dataset_path=args.data,
@@ -282,6 +299,7 @@ def main():
                 "n_clusters": n_clips,
                 "split": args.split,
                 "split_group_by": split_group_by,
+                "split_group_by_source": split_group_by_source,
                 "gallery": "fixed (queries resampled only)",
             }
             log.info(

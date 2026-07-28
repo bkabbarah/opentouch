@@ -51,21 +51,27 @@ nice -n 19 $PY scripts/export_per_joint.py \
 # checkpoint is bootstrapped over the split it was actually trained against.
 log "open #2: retrieval bootstrap CIs"
 run_boot() {
-  local tag=$1 ck=$2 split=$3
+  local tag=$1 ck=$2 split=$3 group=$4
   if [ ! -f "$ck" ]; then log "  missing checkpoint for $tag, skipping"; return; fi
-  log "  $tag / $split"
+  log "  $tag / $split (split-group-by $group)"
   nice -n 19 $PY bootstrap_eval.py \
     --checkpoint "$ck" --data "$DATA" \
     --split "$split" --n-bootstrap 1000 --cluster clip \
+    --split-group-by "$group" \
     --output "results_bootstrap_${tag}_${split}.json" \
     > "/tmp/boot_${tag}_${split}.log" 2>&1 \
     && log "    ok" || log "    FAILED -- see /tmp/boot_${tag}_${split}.log"
 }
 
+# The split is stated EXPLICITLY per checkpoint. Letting it default is what
+# scored p2t_scene_gru at 72.09 mAP instead of 28.31: no retrieval checkpoint
+# in this project records split_group_by, so the "use what the checkpoint
+# recorded" path silently fell through to 'clip' and handed the scene-trained
+# model a gallery full of its own training participants.
 for SPLIT in val test; do
-  run_boot clip_gru        "$CLIP_GRU"                                    "$SPLIT"
-  run_boot scene_gru       logs/p2t_scene_gru/checkpoints/epoch_300.pt    "$SPLIT"
-  run_boot scene_avgpool   logs/p2t_scene_avgpool_norelu/checkpoints/epoch_300.pt "$SPLIT"
+  run_boot clip_gru        "$CLIP_GRU"                                             "$SPLIT" clip
+  run_boot scene_gru       logs/p2t_scene_gru/checkpoints/epoch_300.pt             "$SPLIT" scene
+  run_boot scene_avgpool   logs/p2t_scene_avgpool_norelu/checkpoints/epoch_300.pt  "$SPLIT" scene
 done
 
 # ------------------------------------------------------------- stale artifact

@@ -6,11 +6,11 @@ JSONs and cluster logs, not from previous write-ups.
 **Bottom line.** The earlier conclusion that tactile is redundant with pose
 kinematics was an artifact of what we were asking the model to predict. With a
 corrected prediction target, touch carries real information about finger motion
-— direction *and* magnitude — and it survives every control we've thrown at it.
-As of the latest runs, touch also improves an actual trained forecaster,
-beating pose-only by 11% and beating its capacity-matched control by 14–16%.
-The one claim we cannot yet make is that this holds for a **person the model
-has never seen**; that experiment is specified and ready to run.
+— direction *and* magnitude — and it survives every control we've thrown at it,
+including full participant hold-out. Touch also improves an actual trained
+forecaster: **15% better than its capacity-matched control, for people the
+model has never seen, at both horizons.** The remaining limitation is that the
+tactile encoder is frozen rather than jointly optimised.
 
 ---
 
@@ -189,26 +189,67 @@ the 14–16% gap cannot be capacity, regularization, or architecture. And the fa
 that `frozen shuffled` is *worse* than pose-only shows real touch first has to
 pay back the cost of the branch and only then turns a profit.
 
+### Attempt 3: remove the participant confound entirely
+
+The above still had one hole: the frozen encoder came from a retrieval run
+split at the **clip** level, so it trained on other clips from the same people
+it was evaluated on. It may have learned participant-specific glove
+calibration. That risk is not hypothetical — on the retrieval side, holding out
+whole participants drops mAP from 45.5 to 28.3, so roughly a third of that
+apparent performance was memorization.
+
+So we reran all 18 runs with **both** stages participant-disjoint: the tactile
+encoder pretrained on a scene-disjoint retrieval split, and the forecaster
+trained and evaluated on a scene-disjoint split. No evaluation participant
+appears anywhere in either training stage.
+
+| condition | k=8 | k=16 |
+|---|---|---|
+| **frozen tactile + pose** | **0.000270** | **0.000500** |
+| pose-only | 0.000290 | 0.000515 |
+| frozen shuffled + pose | 0.000317 | 0.000588 |
+| copy-zero | 0.000319 | 0.000622 |
+
+| comparison | k=8 | k=16 | *(participant-seen)* |
+|---|---|---|---|
+| frozen tactile vs **shuffled twin** | **−15.0%** | **−15.0%** | *−14.3% / −15.7%* |
+| frozen tactile vs pose-only | −7.0% | −3.0% | *−11.2% / −11.4%* |
+| frozen shuffled vs pose-only | +9.4% | +14.0% | *+3.6% / +5.1%* |
+
+**The comparison that carries the argument did not move.** Against the
+capacity-matched shuffled control — same frozen encoder, same 66,045 trainable
+parameters, only the tactile-to-pose pairing scrambled — touch is worth 15.0%
+at both horizons, against 14.3%/15.7% when the encoder had seen these people.
+Participant familiarity was not what produced that gap.
+
+**What did change is the price of the branch.** Carrying a frozen tactile
+branch with no usable content costs +9.4%/+14.0% under participant hold-out,
+against +3.6%/+5.1% before. Real touch still pays that back and profits, but
+the net margin over pose-only compresses from ~11% to 7.0% and 3.0%.
+
+That decomposition is itself informative: touch's *information content* is
+unchanged, while the *cost of the extra branch* rose once the model could no
+longer lean on participant-specific calibration.
+
 ### What this does and does not license
 
-**Can say:** touch improves finger-motion forecasting over a pose-only model of
-the same task, and the gain is tactile content rather than added capacity.
+**Can say:** touch carries roughly 15% worth of usable forecasting content over
+a capacity-matched control, for people the model has never seen, consistently
+at both horizons and all three seeds.
 
-**Cannot say yet:** that this holds for a new person. The frozen encoder came
-from a retrieval run split at the **clip** level, meaning it trained on other
-clips from the same participants it is evaluated on. It may have learned
-participant-specific glove calibration.
+**Should not lead with:** the margin over pose-only. At k=16 it is 3.0%, which
+is 0.000015 against seed standard deviations of 0.000003–0.000005 — the
+condition clusters do not overlap, but with three seeds that is not a formal
+test and it is too thin to headline.
 
-How much this matters is worth being concrete about. The core comparison —
-frozen tactile vs frozen shuffled, same encoder, same parameter count, only the
-pairing scrambled — is not obviously manufactured by participant familiarity.
-But we know from the retrieval side that participant leakage is *not* a small
-effect: holding out whole participants drops retrieval from 45.5 to 28.3 mAP.
-A third of that apparent performance was memorization. We should assume the
-same risk applies here until measured.
+**Still open:** the encoder is frozen throughout, so this is a linear-ish
+readout over pretrained features, not a jointly optimised model.
 
-The encoder trained participant-disjoint now exists, so this is a rerun, not new
-work. It is the single highest-value experiment remaining.
+**The honest caveat:** the scene split leaves only **3 held-out scenes** (train
+20 / val 3 / test 3 of 26). "A person the model has never seen" rests on three
+held-out participant-locations. The effect is consistent across seeds and
+horizons, but the participant base is narrow, and that is the first thing a
+skeptical reader should be told rather than left to find.
 
 ---
 
@@ -227,40 +268,29 @@ That is a mechanism, not a coincidence of numbers.
 
 ---
 
-## Open items, in priority order
+## Remaining picture
 
-1. **Participant-disjoint forecasting — RUNNING.** The frozen-encoder
-   experiment rerun with both the encoder and the split scene-disjoint. 18
-   runs (pose-only is rerun too; the existing baseline is clip-split and no
-   longer a valid comparison). This converts "touch helps" into "touch helps
-   for someone we've never seen."
+**Retrieval now has intervals** (clip-clustered, 1000 draws, fixed gallery).
+The participant-disjoint architectural claim is interval-backed, and the two
+arms are nowhere near overlapping on test:
 
-   Worth flagging: this was recorded as a one-flag rerun, and it was not. The
-   regression pipeline had no scene-split option at all — the flag did not
-   exist and the split function was called without it. Had the flag existed
-   without being forwarded, the run would have quietly produced a clip-split
-   result labelled as scene-split, which is precisely the confound the
-   experiment exists to remove. It is now wired, tested, and in flight.
+| checkpoint | split | T-to-P mAP | 95% CI |
+|---|---|---|---|
+| biGRU | clip-disjoint, test | 45.50 | [42.09, 48.65] |
+| **biGRU** | **scene-disjoint, test** | **28.31** | **[25.59, 31.01]** |
+| **avg-pool** | **scene-disjoint, test** | **6.46** | **[5.45, 7.59]** |
 
-   One caveat for reading the results when they land: the motion threshold
-   that defines the "moving" subset is the 25th percentile of the *train*
-   split, so it shifts under a scene split (0.014044 → 0.013977). Comparisons
-   *within* the new sweep are valid; comparing its MSEs directly against the
-   clip-split table above is not.
+**One caveat on the direction results that only became visible at k=16.** At
+the longest horizon, only **curl**'s interval excludes zero (+0.0198 [+0.0036,
++0.0360]); radial and spread now straddle it. k=16 has 6,626 samples from 288
+clips against k=8's 11,425 from 295, so the intervals are wider. Earlier
+confidence intervals were computed at k=8 only, so this was not visible before.
+Phrase it as "curl is the only axis whose k=16 interval excludes zero" — not as
+curl being the strongest axis, which the k=8 data does not support.
 
-2. **Retrieval confidence intervals.** Retrieval is our strongest claim and
-   currently rests on a 3-seed standard deviation. The bootstrap script
-   existed but should not have been run as written: it resampled individual
-   windows rather than clips — the same error that would have made the probe
-   intervals ~6x too tight — and resampled the gallery along with the queries,
-   which matters because mAP here depends on gallery size. Both are fixed and
-   pinned by tests; the runs are queued behind the sweep.
-3. **Per-joint export at k=16**, where the curl effect is largest. Currently
-   k=8 only.
-4. **Joint optimization.** Freezing the encoder works, but whether joint
-   training can beat it given more data or stronger regularization is unknown.
-
----
+**The one genuinely open item: a jointly-optimised model.** Freezing the
+encoder is what made touch work at all, but whether joint training can beat it
+given more data or stronger regularization is unknown.
 
 ## Provenance
 
@@ -277,6 +307,9 @@ That is a mechanism, not a coincidence of numbers.
 | subset analysis | `results_subset_discover_k8_*.json` |
 | forecasting, scratch | cluster `logs/rr_{pose,tac,shuf}_k{8,16}_s{1,2,3}` |
 | forecasting, frozen | cluster `logs/rf_{frz,frzshuf,ft}_k{8,16}_s{1,2,3}` |
+| forecasting, participant-disjoint | `results_scene_forecast.json`; cluster `logs/sf_*` |
+| retrieval CIs | `results_bootstrap_{clip_gru,scene_gru,scene_avgpool}_{val,test}.json` |
+| per-joint k=16 | `per_joint_k16.{json,csv}` |
 
 A note on the AUC scale: these are AUCs over per-joint directional
 classification, where 0.5 is chance. Baselines sit near 0.62–0.69, so a
