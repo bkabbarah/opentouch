@@ -448,9 +448,10 @@ Participant familiarity was not what produced that gap.
 no usable content costs +9.4% / +14.0% under participant hold-out, against
 +3.6% / +5.1% before. Real touch still pays that back and profits, but the net
 margin over pose-only compresses from ~11% to 7.0% (k=8) and 3.0% (k=16).
-At k=16 the frz-vs-pose gap is 0.000015 against seed sds of 0.000003-0.000005:
-the condition clusters do not overlap, but with 3 seeds this is not a formal
-test, and it is thin enough that it should not be the sentence anyone quotes.
+At k=16 the frz-vs-pose gap is 0.000015 against seed sds of 0.000003-0.000005.
+**A clip-clustered bootstrap has since shown that this margin includes zero**
+(-2.70% [-7.50, +1.82], §2.19b) and it must not be quoted. The k=8 margin
+(-6.87% [-11.06, -2.67]) does exclude zero.
 
 **Quote the shuffled comparison, not the pose-only one.** It is both the
 stronger claim and the one that survived participant hold-out unchanged.
@@ -464,6 +465,57 @@ Not comparable to §2.17's absolute MSEs: the motion threshold defining the
 "moving" subset is the 25th percentile of the *train* split, so it shifts
 (k=8: 0.014044 → 0.013977; k=16: 0.024003). Within-sweep comparisons are
 valid; cross-sweep ones are not.
+
+### 2.19b Forecasting CIs, and the gate-zero diagnostic
+
+`results_forecast_ci_val.json`, `scripts/forecast_ci.py`. Paired
+clip-clustered bootstrap, 1000 draws, seeds averaged per sample first so the
+interval describes the condition rather than one training run. Reproduces
+§2.19's MSEs exactly (0.000270 / 0.000318 / 0.000290 at k=8, moving
+11,060/14,554), so it is bracketing the same quantity.
+
+| comparison | k=8 | k=16 |
+|---|---|---|
+| frz vs **frzshuf** | **−14.96% [−18.91, −11.24]** | **−14.86% [−19.09, −10.57]** |
+| frz vs pose-only | −6.87% [−11.06, −2.67] | **−2.70% [−7.50, +1.82]** |
+| frzshuf vs pose-only | +9.52% [+7.36, +11.43] | +14.27% [+10.61, +17.94] |
+
+**The k=16 pose-only margin includes zero and must be withdrawn.** Every other
+comparison excludes it. The shuffled comparison is ~15% at both horizons with
+intervals nowhere near zero, which is why it, and not the pose-only margin, is
+the sentence to quote.
+
+**Gate-zero diagnostic — the "optimiser failed to switch the branch off"
+hypothesis is REFUTED.** The worry was that `frzshuf` lands above pose-only
+only because the optimiser never found gate≈0 (which reproduces the pose-only
+head exactly), making the frz-vs-frzshuf gap partly a measure of optimiser
+failure rather than tactile content. Forcing gate=0 at inference:
+
+| condition | k=8 vs pose-only | k=16 vs pose-only |
+|---|---|---|
+| frz @ gate=0 | **+42.99%** | +20.70% |
+| frzshuf @ gate=0 | **+27.40%** | +11.03% |
+| frz vs frz @ gate=0 | −34.87% | −19.39% |
+
+Zeroing the gate makes both arms *dramatically worse*, not better. gate≈0 is
+not a better solution the optimiser missed — it is a much worse one. The pose
+head in these models co-adapts to having a branch, so deleting the branch
+breaks it; the branch is load-bearing even when its content is scrambled.
+
+So `frzshuf` is not a crippled model that failed to switch off. It is a
+genuine capacity-matched control that uses its branch productively for
+everything *except* tactile-specific information — which is exactly what the
+control is supposed to be. **This strengthens the frz-vs-frzshuf comparison
+rather than qualifying it.**
+
+The +9.5%/+14.3% branch cost still stands, and is now correctly read as:
+training *with* a useless branch is worse than training *without* one
+(pose-only 0.000290 < frzshuf 0.000318), but once trained with it you cannot
+recover pose-only by switching it off (frzshuf@gate0 0.000370).
+
+Gates flip sign across model seeds (+0.026 / −0.027) with consistent
+magnitude. That is the expected sign symmetry — gate and branch output can
+co-flip for identical products — not instability.
 
 ### 2.20 Retrieval bootstrap CIs — open question #2 closed
 
@@ -683,7 +735,16 @@ task's description.
 3. **[CLOSED — see §2.21]** Per-joint export at k=16. Run; `per_joint_k16.{json,csv}`.
    Curl is indeed largest at k=16 (+0.0198) and is the *only* axis whose k=16
    interval excludes zero.
-4. **THE ONE GENUINELY OPEN ITEM. A jointly-optimised model.** §2.17 and §2.19 freeze the encoder. Whether joint
+4. **[IN PROGRESS] Split-seed robustness.** Every participant-disjoint number
+   rests on one partition (split_seed=42, 26 scenes -> 20/3/3), so the claim
+   rests on three held-out person-locations. A clip bootstrap cannot see this;
+   it resamples clips *within* those three scenes. `scripts/split_seed_study.sh`
+   redraws the partition at seeds 1/2/3 -- and retrains the retrieval encoder
+   at each, because reusing the seed-42 encoder would hand the new val scenes
+   to an encoder that trained on some of them, reintroducing the very leak
+   §2.19 removes. Launched 2026-07-28 18:22 (tmux `splitseed`), ~12h.
+
+5. **THE ONE GENUINELY OPEN ITEM. A jointly-optimised model.** §2.17 and §2.19 freeze the encoder. Whether joint
    optimisation can beat it, given more data or stronger regularisation, is
    unknown.
 
