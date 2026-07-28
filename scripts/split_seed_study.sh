@@ -41,7 +41,11 @@ log() { echo "[$(date '+%m-%d %H:%M:%S')] $*"; }
 # One scene-disjoint retrieval encoder per split seed, same config as
 # p2t_scene_gru (which is the split_seed=42 member of this family).
 train_encoder() {
-  local ss=$1 gpu=$2 name="p2t_scene_gru_ss${ss}"
+  # Separate statements on purpose: bash expands every word of a `local`
+  # before performing any of its assignments, so `local ss=$1 name="...${ss}"`
+  # reads ss while it is still unbound (fatal under `set -u`).
+  local ss=$1 gpu=$2
+  local name="p2t_scene_gru_ss${ss}"
   if [ -f "logs/$name/checkpoints/epoch_300.pt" ]; then
     log "  encoder $name already done, skipping"; return 0
   fi
