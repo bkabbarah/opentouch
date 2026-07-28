@@ -268,3 +268,55 @@ class PoseTransitionRegressor(nn.Module):
                 "structurally impossible to leak in, not merely unused"
             )
             return delta_pose
+
+
+def load_pretrained_tactile_encoder(
+    model: "PoseTransitionRegressor", checkpoint_path: str, freeze: bool,
+) -> int:
+    """Initialise the regression model's tactile encoder from a RETRIEVAL
+    checkpoint's `tactile.*` weights, optionally freezing it.
+
+    WHY THIS EXISTS. Trained from random initialisation, the tactile branch is
+    ~500k parameters learning against a 33k-parameter pose head on ~116k
+    samples, under an MSE loss dominated by magnitude. Every rebuild so far
+    shows it extracting real signal -- real tactile beats its deranged twin by
+    26-39% -- while still losing to pose-only, because it cannot pay for the
+    capacity it costs.
+
+    Meanwhile every positive result in this project comes from the tactile
+    encoder FROZEN from the retrieval checkpoint. The forecaster has never been
+    given the encoder that demonstrably contains the signal. This closes that
+    gap, and makes the two lines of evidence comparable for the first time.
+
+    strict=True on the submodule load: an architecture mismatch must raise
+    rather than silently leave the branch on random weights, which would look
+    exactly like a negative result.
+
+    Returns the number of tensors loaded.
+    """
+    if not model.use_tactile or model.tactile_encoder is None:
+        raise ValueError(
+            "cannot load tactile weights into a pose-only model "
+            "(use_tactile=False); --tactile-init-checkpoint requires a tactile run"
+        )
+
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    state = checkpoint.get("state_dict", checkpoint.get("model", checkpoint))
+    if next(iter(state)).startswith("module."):
+        state = {k[len("module."):]: v for k, v in state.items()}
+
+    tactile_state = {
+        k[len("tactile."):]: v for k, v in state.items() if k.startswith("tactile.")
+    }
+    if not tactile_state:
+        raise ValueError(
+            f"checkpoint {checkpoint_path!r} has no 'tactile.*' weights -- was it "
+            "trained with the tactile tower enabled?"
+        )
+    model.tactile_encoder.load_state_dict(tactile_state, strict=True)
+
+    if freeze:
+        model.tactile_encoder.eval()
+        for parameter in model.tactile_encoder.parameters():
+            parameter.requires_grad_(False)
+    return len(tactile_state)

@@ -29,7 +29,10 @@ except ImportError:
     wandb = None
 
 from opentouch.factory import natural_key
-from opentouch.pose_regression import PoseTransitionRegressor
+from opentouch.pose_regression import (
+    PoseTransitionRegressor,
+    load_pretrained_tactile_encoder,
+)
 from opentouch_train.distributed import is_master, init_distributed_device, broadcast_object
 from opentouch_train.logger import setup_logging
 from opentouch_train.regression_data import compute_motion_threshold, get_regression_data
@@ -204,6 +207,15 @@ def main(args):
         tactile_correction_input=args.tactile_correction_input,
     ).to(device)
 
+    if args.tactile_init_checkpoint:
+        n_tensors = load_pretrained_tactile_encoder(
+            model, args.tactile_init_checkpoint, freeze=args.freeze_tactile_encoder,
+        )
+        logging.info(
+            "Tactile encoder initialised from %s (%d tensors, strict=True), frozen=%s",
+            args.tactile_init_checkpoint, n_tensors, args.freeze_tactile_encoder,
+        )
+
     random_seed(args.seed, args.rank)
 
     if is_master(args):
@@ -227,6 +239,12 @@ def main(args):
                     hidden_dim=args.hidden_dim,
                     tactile_correction_input=args.tactile_correction_input,
                 )
+                # Parity is over TRAINABLE parameters, so the reference has to
+                # be frozen the same way or a frozen run would fail an assert
+                # that has nothing to do with the control it is checking.
+                if args.freeze_tactile_encoder and reference.tactile_encoder is not None:
+                    for parameter in reference.tactile_encoder.parameters():
+                        parameter.requires_grad_(False)
             reference_params = sum(p.numel() for p in reference.parameters() if p.requires_grad)
             assert num_params == reference_params, (
                 f"shuffle_tactile model has {num_params:,} params but a plain tactile+pose "

@@ -58,6 +58,22 @@ def parse_regression_args(args):
              "reported on ALL samples regardless -- see opentouch.regression_metrics.",
     )
     parser.add_argument(
+        "--tactile-init-checkpoint", type=str, default=None,
+        help="Initialise the tactile encoder from this RETRIEVAL checkpoint's tactile.* "
+             "weights instead of from scratch. Trained from random init the branch has "
+             "~500k parameters against a 33k pose head on ~116k samples, and loses to "
+             "pose-only despite demonstrably extracting real signal; every positive "
+             "result in this project comes from the encoder frozen from retrieval. This "
+             "gives the forecaster that encoder.",
+    )
+    parser.add_argument(
+        "--freeze-tactile-encoder", action="store_true",
+        help="Freeze the tactile encoder after loading. Matches the frozen-feature probe "
+             "exactly, and removes ~500k trainable parameters, which is the capacity cost "
+             "that has been sinking the tactile arm. Requires --tactile-init-checkpoint; "
+             "freezing random weights would be meaningless.",
+    )
+    parser.add_argument(
         "--grad-clip-scope", type=str, default="global",
         choices=["global", "per_branch"],
         help="Scope of gradient-norm clipping. 'global' (default, and what every "
@@ -226,4 +242,13 @@ def parse_regression_args(args):
                 "--sequence-length, reduce --horizon-k, or lower --min-history."
             )
 
+    if parsed.freeze_tactile_encoder and not parsed.tactile_init_checkpoint:
+        raise ValueError(
+            "--freeze-tactile-encoder requires --tactile-init-checkpoint: freezing a "
+            "randomly initialised encoder would train a pose head against fixed noise"
+        )
+    if parsed.tactile_init_checkpoint and parsed.pose_only:
+        raise ValueError(
+            "--tactile-init-checkpoint has no effect with --pose-only (no tactile branch)"
+        )
     return parsed

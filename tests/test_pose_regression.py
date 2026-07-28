@@ -1196,3 +1196,106 @@ def test_clip_scope_is_validated():
         param.grad = torch.ones_like(param)
     with pytest.raises(ValueError, match="grad_clip_scope"):
         _clip_gradients(model, 1.0, "whole_model")
+
+
+# ==========================================================================
+# Pretrained tactile encoder: giving the forecaster the encoder that the
+# frozen-feature probes showed actually contains the signal
+# ==========================================================================
+
+
+def _fake_retrieval_checkpoint(tmp_path, emb_dim=64):
+    """A checkpoint shaped like a retrieval one: tactile.* keys plus other
+    towers that must be ignored rather than tripping the strict load."""
+    from opentouch.tactile_encoder import CNNetEmbedding
+
+    encoder = CNNetEmbedding(emb_dim=emb_dim)
+    state = {"tactile." + k: v for k, v in encoder.state_dict().items()}
+    state["pose.projection.weight"] = torch.randn(emb_dim, 240)
+    state["visual.something.weight"] = torch.randn(4, 4)
+    path = tmp_path / "retrieval.pt"
+    torch.save({"state_dict": state, "epoch": 300}, path)
+    return path, encoder
+
+
+def test_pretrained_tactile_weights_are_actually_loaded(tmp_path):
+    from opentouch.pose_regression import load_pretrained_tactile_encoder
+
+    path, source = _fake_retrieval_checkpoint(tmp_path)
+    model = PoseTransitionRegressor(use_tactile=True, tactile_correction_input="tactile_only")
+    before = {k: v.clone() for k, v in model.tactile_encoder.state_dict().items()}
+
+    n = load_pretrained_tactile_encoder(model, str(path), freeze=False)
+    assert n == len(source.state_dict())
+    after = model.tactile_encoder.state_dict()
+    for key, value in source.state_dict().items():
+        assert torch.allclose(after[key], value), f"{key} was not loaded"
+    changed = any(
+        not torch.allclose(before[k], after[k])
+        for k, v in after.items() if v.is_floating_point()
+    )
+    assert changed, "sanity: loading should have changed the weights"
+
+
+def test_freezing_removes_the_tactile_encoder_from_trainable_parameters(tmp_path):
+    """The capacity cost is what has been sinking the tactile arm: ~500k
+    parameters against a 33k pose head. Freezing must actually remove them."""
+    from opentouch.pose_regression import load_pretrained_tactile_encoder
+
+    path, _ = _fake_retrieval_checkpoint(tmp_path)
+    model = PoseTransitionRegressor(use_tactile=True, tactile_correction_input="tactile_only")
+    trainable_before = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    load_pretrained_tactile_encoder(model, str(path), freeze=True)
+    trainable_after = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    assert trainable_after < trainable_before
+    assert trainable_before - trainable_after > 400_000
+    assert all(not p.requires_grad for p in model.tactile_encoder.parameters())
+    # The correction head and gate must stay trainable, or nothing can learn
+    # to use the frozen features.
+    assert any(p.requires_grad for p in model.tactile_head.parameters())
+    assert model.gate.requires_grad
+
+
+def test_frozen_encoder_weights_do_not_move_under_optimisation(tmp_path):
+    from opentouch.pose_regression import load_pretrained_tactile_encoder
+
+    path, _ = _fake_retrieval_checkpoint(tmp_path)
+    model = PoseTransitionRegressor(use_tactile=True, tactile_correction_input="tactile_only")
+    load_pretrained_tactile_encoder(model, str(path), freeze=True)
+    snapshot = {k: v.clone() for k, v in model.tactile_encoder.state_dict().items()}
+
+    optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=1e-2)
+    for _ in range(3):
+        optimizer.zero_grad()
+        out = model(torch.randn(4, 21, 3), torch.rand(4, 20, 1, 16, 16))
+        out.pow(2).mean().backward()
+        optimizer.step()
+
+    for key, value in model.tactile_encoder.state_dict().items():
+        if value.is_floating_point():
+            assert torch.allclose(snapshot[key], value), f"frozen weight {key} moved"
+
+
+def test_loading_into_a_pose_only_model_raises(tmp_path):
+    from opentouch.pose_regression import load_pretrained_tactile_encoder
+
+    path, _ = _fake_retrieval_checkpoint(tmp_path)
+    with pytest.raises(ValueError, match="pose-only"):
+        load_pretrained_tactile_encoder(
+            PoseTransitionRegressor(use_tactile=False), str(path), freeze=False
+        )
+
+
+def test_checkpoint_without_tactile_weights_raises(tmp_path):
+    """Must fail loudly rather than leave the branch on random weights, which
+    would look exactly like a negative result."""
+    from opentouch.pose_regression import load_pretrained_tactile_encoder
+
+    path = tmp_path / "no_tactile.pt"
+    torch.save({"state_dict": {"pose.projection.weight": torch.randn(64, 240)}}, path)
+    with pytest.raises(ValueError, match="tactile"):
+        load_pretrained_tactile_encoder(
+            PoseTransitionRegressor(use_tactile=True), str(path), freeze=False
+        )

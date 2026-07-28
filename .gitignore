@@ -252,3 +252,4 @@ worst_queries.csv
 MORNING_REPORT.md
 gate0_*.json
 assets/B_matrices_shuffled.npz
+results/
