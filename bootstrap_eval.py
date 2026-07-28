@@ -55,25 +55,73 @@ def parse_args():
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--all-directions", action="store_true",
                    help="Bootstrap all directions, not just pose-involved ones.")
+    p.add_argument("--val-ratio", type=float, default=0.1)
+    p.add_argument("--test-ratio", type=float, default=0.1)
+    p.add_argument("--split-group-by", type=str, default=None, choices=["clip", "scene"],
+                   help="Split geometry. Defaults to whatever the checkpoint recorded, "
+                        "so a scene-disjoint checkpoint is bootstrapped over its own "
+                        "scene-disjoint gallery. Overriding this evaluates the model "
+                        "against a split it was not trained for.")
+    p.add_argument("--cluster", type=str, default="clip", choices=["clip", "window"],
+                   help="Bootstrap resampling unit. 'clip' (default) resamples whole "
+                        "clips, which is required because sliding windows within a clip "
+                        "overlap by 19 of 20 frames. 'window' reproduces the naive "
+                        "per-window bootstrap for comparison only -- it is too tight.")
     return p.parse_args()
 
 
 def bootstrap_map(query_emb: torch.Tensor, target_emb: torch.Tensor,
-                  n: int, rng: np.random.Generator) -> np.ndarray:
-    """
-    Bootstrap mAP by resampling (query_i, target_i) pairs with replacement.
-    Returns array of shape (n,) containing mAP for each bootstrap sample.
+                  n: int, rng: np.random.Generator,
+                  clip_ids: np.ndarray | None = None) -> np.ndarray:
+    """Bootstrap mAP. Returns array of shape (n,), one mAP per draw.
+
+    Two things here are deliberate and both matter for the reported interval.
+
+    RESAMPLING UNIT. With `clip_ids`, whole clips are resampled with
+    replacement and every window of a chosen clip comes along. Windows are
+    20-frame sliding windows, so neighbours within a clip overlap by 19 frames
+    and are nowhere near independent -- the same argument that forced
+    clip-clustered CIs on the direction probe (HANDOFF 2.3, where a per-window
+    bootstrap came out ~6x too tight). Passing clip_ids=None reproduces the
+    per-window bootstrap and is kept only so the two can be compared; it
+    understates the interval and should not be quoted.
+
+    FIXED GALLERY. Only the QUERIES are resampled; the gallery stays the full
+    split. mAP here is mean(1/rank) against the entire eval split as gallery
+    (metrics.py:75), so it is a function of gallery SIZE -- the same weights
+    score 14.42 against 1572 candidates and 16.76 against 1399 (HANDOFF 2.1).
+    Resampling the gallery too would blend "how much does mAP vary across
+    samples of people" with "how much does mAP vary with gallery size", and
+    the second is an artifact of the metric, not a property of the model.
+    Resampling the gallery with replacement also duplicates entries, and
+    duplicates tie with the correct target under `sim >= correct_sims`, which
+    inflates ranks. A fixed gallery avoids both.
     """
     query_emb = F.normalize(query_emb, dim=1)
     target_emb = F.normalize(target_emb, dim=1)
     num_samples = len(query_emb)
     maps = np.zeros(n)
+
+    clip_windows: list[np.ndarray] = []
+    if clip_ids is not None:
+        by_clip: dict[int, list[int]] = {}
+        for pos, cid in enumerate(clip_ids):
+            by_clip.setdefault(int(cid), []).append(pos)
+        clip_windows = [np.asarray(v) for v in by_clip.values()]
+    n_clips = len(clip_windows)
+
+    sim_full = query_emb @ target_emb.t()          # (N_query, N_gallery), gallery fixed
+    diag = sim_full.diag()
+
     for i in range(n):
-        idx = rng.integers(0, num_samples, size=num_samples)
-        q = query_emb[idx]
-        t = target_emb[idx]
-        sim = q @ t.t()
-        correct_sims = sim.diag().unsqueeze(1)
+        if clip_ids is not None:
+            chosen = rng.integers(0, n_clips, size=n_clips)
+            idx = np.concatenate([clip_windows[c] for c in chosen])
+        else:
+            idx = rng.integers(0, num_samples, size=num_samples)
+        idx_t = torch.as_tensor(idx, dtype=torch.long)
+        sim = sim_full[idx_t]                      # queries resampled, gallery intact
+        correct_sims = diag[idx_t].unsqueeze(1)
         ranks = (sim >= correct_sims).sum(dim=1).float()
         maps[i] = (1.0 / ranks).mean().item()
     return maps
@@ -121,13 +169,37 @@ def main():
     autocast = get_autocast(args.precision, device_type=device.type)
     input_dtype = get_input_dtype(args.precision)
 
+    # Match eval.py: the split geometry must be the one the model was trained
+    # against, or the gallery is a different set of clips and the mAP is not
+    # the number being quoted. An older checkpoint predating the field falls
+    # back to the historical 'clip' behaviour.
+    split_group_by = args.split_group_by or meta.get("split_group_by") or "clip"
+    if args.split_group_by and meta.get("split_group_by") and args.split_group_by != meta["split_group_by"]:
+        log.warning(
+            "--split-group-by=%s OVERRIDES the checkpoint's recorded %s -- the gallery "
+            "will not be the split this model was trained against.",
+            args.split_group_by, meta["split_group_by"],
+        )
+    log.info(f"Bootstrapping with split_group_by={split_group_by}, cluster unit={args.cluster}")
+
     dataset = VideoTactilePoseDataset(
         hf_dataset_path=args.data,
         split=args.split,
         sequence_length=20,
         image_size=(224, 224),
+        val_ratio=args.val_ratio,
+        test_ratio=args.test_ratio,
+        random_seed=args.seed,
+        split_group_by=split_group_by,
         **modality_flags,
     )
+
+    # One cluster id per window, in dataloader order (shuffle=False below), so
+    # positions line up with the extracted embeddings.
+    clip_ids = np.asarray([clip_idx for clip_idx, _ in dataset.windows])
+    n_clips = len(set(clip_ids.tolist()))
+    log.info(f"{len(dataset)} windows from {n_clips} clips "
+             f"({len(dataset) / max(n_clips, 1):.1f} windows/clip)")
     dataloader = DataLoader(
         dataset, batch_size=args.batch_size, shuffle=False,
         num_workers=4, collate_fn=collate_fn, pin_memory=True,
@@ -191,7 +263,10 @@ def main():
                 continue
 
             log.info(f"Bootstrapping {direction}...")
-            maps = bootstrap_map(q_emb, t_emb, args.n_bootstrap, rng)
+            maps = bootstrap_map(
+                q_emb, t_emb, args.n_bootstrap, rng,
+                clip_ids=clip_ids if args.cluster == "clip" else None,
+            )
             mean = float(np.mean(maps))
             std = float(np.std(maps))
             ci_lo = float(np.percentile(maps, 2.5))
@@ -203,6 +278,11 @@ def main():
                 "ci_95_hi": round(ci_hi * 100, 3),
                 "n_bootstrap": args.n_bootstrap,
                 "n_test_samples": len(query_features),
+                "cluster_unit": args.cluster,
+                "n_clusters": n_clips,
+                "split": args.split,
+                "split_group_by": split_group_by,
+                "gallery": "fixed (queries resampled only)",
             }
             log.info(
                 f"  {direction}: mean={mean*100:.2f}  std={std*100:.2f}  "
