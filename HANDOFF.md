@@ -16,10 +16,11 @@ out on the cluster at `~/scratch/bashar/opentouch-gru`).
 > (§2.19). That is the practical claim that was unavailable for the whole
 > project, and it now survives participant hold-out.
 >
-> Read §2.19 first, then §2.17, §2.10 and §2.11. **Quote the shuffled
-> comparison, not the pose-only one** — under participant hold-out the margin
-> over pose-only compresses to 7.0% (k=8) and 3.0% (k=16), while the margin
-> over the capacity-matched control does not move at all.
+> Read §2.19 and §2.19b first, then §2.17, §2.10 and §2.11. **Quote the
+> shuffled comparison, not the pose-only one.** Under participant hold-out the
+> shuffled margin holds at ~15% with clip-clustered intervals far from zero at
+> both horizons, while the margin over pose-only compresses to −6.9% at k=8
+> and −2.7% at k=16 — and **the k=16 one includes zero, so it is withdrawn.**
 
 ## 1. Where things stand in one paragraph
 
