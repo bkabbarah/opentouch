@@ -78,6 +78,7 @@ def _read_checkpoint_meta(path) -> dict:
         "causal": ckpt.get("causal"),
         "causal_window": ckpt.get("causal_window"),
         "min_history": ckpt.get("min_history"),
+        "split_group_by": ckpt.get("split_group_by"),
     }
 
     if any(
@@ -106,6 +107,22 @@ def _read_checkpoint_meta(path) -> dict:
         _coerce("causal", lambda v: v == "True")
         _coerce("causal_window", int)
         _coerce("min_history", lambda v: None if v == "None" else int(v))
+        _coerce("split_group_by", str)
+
+    if meta["split_group_by"] is None:
+        # Checkpoints written before split_group_by was recorded were all
+        # trained on the clip-level split, because that was the only option
+        # the regression pipeline had. Unlike the retrieval side -- where the
+        # same silent fallback scored a scene-trained model at 72.09 mAP
+        # against a gallery of its own training participants -- this default
+        # is a correct reconstruction rather than a guess, but it is stated
+        # rather than assumed.
+        log.warning(
+            f"Checkpoint '{path}' has no 'split_group_by' (predates the field) -- "
+            "defaulting to 'clip', which is what the pipeline could only have done "
+            "at the time. Pass --split-group-by explicitly to override."
+        )
+        meta["split_group_by"] = "clip"
 
     if meta["causal"] is None:
         # Predates the causal-tactile-window fix entirely (checkpoint and
@@ -153,6 +170,12 @@ def parse_args(argv=None):
     p.add_argument("--val-ratio", type=float, default=0.1, help="Must match training.")
     p.add_argument("--test-ratio", type=float, default=0.1, help="Must match training.")
     p.add_argument(
+        "--split-group-by", default=None, choices=["clip", "scene"],
+        help="Override the checkpoint's recorded split geometry. Leave unset -- a "
+             "scene-trained model evaluated on a clip split sees participants it "
+             "trained on, and reports an inflated number that looks plausible.",
+    )
+    p.add_argument(
         "--split-seed", type=int, default=None,
         help="Override (auto-detected from checkpoint). Must match training exactly "
              "for --shuffle-tactile checkpoints, or the pose/tactile pairing changes.",
@@ -186,6 +209,13 @@ def main(argv=None):
     causal = args.causal if args.causal is not None else meta["causal"]
     causal_window = args.causal_window if args.causal_window is not None else meta["causal_window"]
     min_history = args.min_history if args.min_history is not None else meta["min_history"]
+    split_group_by = args.split_group_by or meta["split_group_by"]
+    if args.split_group_by and args.split_group_by != meta["split_group_by"]:
+        log.warning(
+            "--split-group-by=%s OVERRIDES the checkpoint's %s -- the eval set will "
+            "not be the split this model was trained against.",
+            args.split_group_by, meta["split_group_by"],
+        )
     pose_only = meta["pose_only"]
     shuffle_tactile = meta["shuffle_tactile"]
     target_mode = meta["target_mode"]
@@ -199,6 +229,7 @@ def main(argv=None):
     log.info(
         f"causal: {causal}  causal_window: {causal_window}  min_history: {min_history}"
     )
+    log.info(f"split_group_by: {split_group_by}  split_seed: {split_seed}")
     log.info(
         f"git_commit: {meta.get('git_commit', '?')}  git_dirty: {meta.get('git_dirty', '?')}"
     )
@@ -227,6 +258,7 @@ def main(argv=None):
         val_ratio=args.val_ratio,
         test_ratio=args.test_ratio,
         random_seed=split_seed,
+        split_group_by=split_group_by,
         include_tactile=not pose_only,
         include_visual=False,
         include_pose=True,

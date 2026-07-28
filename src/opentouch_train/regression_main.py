@@ -365,6 +365,12 @@ def main(args):
                 "hidden_dim": args.hidden_dim,
                 "sequence_length": args.sequence_length,
                 "split_seed": args.split_seed,
+                # Recorded so eval cannot silently rebuild a DIFFERENT split.
+                # Retrieval checkpoints predate their equivalent field, and the
+                # cost of that was a scene-trained model scoring 72.09 mAP
+                # against a gallery full of its own training participants
+                # instead of its true 28.31.
+                "split_group_by": getattr(args, "split_group_by", "clip"),
             }
             if scaler is not None:
                 checkpoint_dict["scaler"] = scaler.state_dict()
