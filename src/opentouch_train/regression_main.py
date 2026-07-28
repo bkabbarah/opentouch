@@ -371,6 +371,10 @@ def main(args):
                 # against a gallery full of its own training participants
                 # instead of its true 28.31.
                 "split_group_by": getattr(args, "split_group_by", "clip"),
+                # Sets the width of tactile_head, so a wrong reconstruction
+                # is a load_state_dict size mismatch rather than a silently
+                # wrong evaluation. Recorded so eval need not guess.
+                "tactile_correction_input": getattr(args, "tactile_correction_input", "pose_tactile"),
             }
             if scaler is not None:
                 checkpoint_dict["scaler"] = scaler.state_dict()

@@ -79,11 +79,14 @@ def _read_checkpoint_meta(path) -> dict:
         "causal_window": ckpt.get("causal_window"),
         "min_history": ckpt.get("min_history"),
         "split_group_by": ckpt.get("split_group_by"),
+        "tactile_correction_input": ckpt.get("tactile_correction_input"),
     }
 
     if any(
         meta[k] is None for k in
-        _REQUIRED_META_FIELDS + ("git_commit", "git_dirty", "causal", "causal_window")
+        _REQUIRED_META_FIELDS
+        + ("git_commit", "git_dirty", "causal", "causal_window",
+           "split_group_by", "tactile_correction_input")
     ):
         params_file = Path(path).resolve().parent.parent / "params.txt"
         params = _read_params_file(params_file)
@@ -108,6 +111,14 @@ def _read_checkpoint_meta(path) -> dict:
         _coerce("causal_window", int)
         _coerce("min_history", lambda v: None if v == "None" else int(v))
         _coerce("split_group_by", str)
+        _coerce("tactile_correction_input", str)
+
+    if meta["tactile_correction_input"] is None:
+        # Predates the flag; the default at the time was the pose+tactile
+        # correction input. Recorded explicitly because it sets the width of
+        # tactile_head, so guessing wrong is a load_state_dict size mismatch,
+        # not a silent wrong answer -- loud, but still worth stating.
+        meta["tactile_correction_input"] = "pose_tactile"
 
     if meta["split_group_by"] is None:
         # Checkpoints written before split_group_by was recorded were all
@@ -240,6 +251,7 @@ def main(argv=None):
         use_tactile=not pose_only,
         tactile_emb_dim=meta["tactile_emb_dim"],
         hidden_dim=meta["hidden_dim"],
+        tactile_correction_input=meta["tactile_correction_input"],
     ).to(device)
 
     ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)

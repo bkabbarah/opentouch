@@ -84,6 +84,7 @@ def per_sample_errors(ckpt_path, data, split, device, batch_size, workers,
         use_tactile=not pose_only,
         tactile_emb_dim=meta["tactile_emb_dim"],
         hidden_dim=meta["hidden_dim"],
+        tactile_correction_input=meta["tactile_correction_input"],
     ).to(device)
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     sd = ckpt["state_dict"] if "state_dict" in ckpt else ckpt
