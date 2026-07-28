@@ -278,7 +278,7 @@ found by trying to load the upstream checkpoint:
 The second one has consequences beyond checkpoint loading: it handicapped the
 overnight scene-disjoint avg-pool arm, which is why §2.13 is quarantined.
 
-### 2.16 Forecasting rebuild — running as of 2026-07-27
+### 2.16 Forecasting rebuild — COMPLETE, 18 runs
 
 18 runs: pose-only / tactile+pose / shuffled-tactile, k ∈ {8,16}, 3 seeds.
 All methodological fixes on: `--target-mode rigid_articulation`, `--causal`
@@ -287,19 +287,58 @@ with `--sequence-length 36 --min-history 10`,
 `--grad-clip-scope per_branch` (so the pose head is clipped identically in
 both arms).
 
-First data point, pose-only k=8 at epoch 25/300, moving fingertips:
+Final, epoch 300, rigid target, moving subset, fingertip MSE (lower better):
 
-| target space | model | copy-zero | improvement |
-|---|---|---|---|
-| rigid (trained) | 0.000297 | 0.000312 | 4.8% |
-| articulation | 0.002975 | 0.002971 | −0.1% |
-| world | 0.020545 | 0.020556 | 0.1% |
+| | k=8 | k=16 |
+|---|---|---|
+| copy-zero | 0.000312 | 0.000609 |
+| **pose-only** | **0.000287** | **0.000521** |
+| tactile+pose | 0.000356 | 0.000692 |
+| shuffled-tactile | 0.000479 | 0.001135 |
 
-**The corrected target is a much harder problem.** Pose-only beat copy-zero by
-17% on the old articulation target and by 4.8% here, because removing
-whole-hand rotation strips out the predictable inertial component. Expect
-small effect sizes, and read tactile-vs-shuffled rather than
-tactile-vs-pose-only, since only the shuffled twin is capacity-matched.
+Seed std ≤ 0.000027 throughout. Gates converge to a consistent sign
+(−0.019 to −0.023) rather than flipping across seeds as they did in the old
+runs, which is what an unconfounded ablation should look like.
+
+**Two things are true at once.**
+
+1. **Real touch beats its deranged twin by 26% (k=8) and 39% (k=16)**,
+   consistently at every seed. The network is genuinely extracting tactile
+   information.
+2. **tactile+pose still loses to pose-only** by 24% and 33%, and now also
+   loses to copy-zero.
+
+So the failure is **capacity, not information**, which matches the
+frozen-feature probes exactly. There is still no forecaster that uses touch
+and beats the simpler model; that claim remains unavailable.
+
+Note also that the corrected target is a harder problem: pose-only beats
+copy-zero by 17% on the old articulation target and only 8-14% here, because
+removing whole-hand rotation strips out the predictable inertial component.
+Read tactile-vs-shuffled, not tactile-vs-pose-only: only the shuffled twin is
+capacity-matched.
+
+### 2.17 Frozen-encoder bridge — running as of 2026-07-27 21:00
+
+The regression trains its tactile encoder from RANDOM init (~500k parameters
+against a 33k pose head, ~116k samples, MSE loss). Every positive result in
+this project comes from that encoder FROZEN from the retrieval checkpoint. The
+forecaster had never been given the encoder that demonstrably contains the
+signal.
+
+`--tactile-init-checkpoint` + `--freeze-tactile-encoder` close that gap.
+Verified at launch: 24 tensors loaded strict, trainable parameters drop from
+574,205 to **66,045**, so the tactile arm is now comparable to pose-only's
+32,957 rather than 17x larger.
+
+Three arms x k in {8,16} x 3 seeds: frozen, frozen+shuffled (capacity-matched
+control), fine-tuned. Logs `/tmp/rf_{frz,frzshuf,ft}_k*_s*.log`, runs
+`logs/rf_*`.
+
+**How to read it.** If frozen wins, the information was always there and the
+forecaster just needed the right encoder -- that is the practical claim. If it
+still loses, that is a specific and strong negative: the information is real
+but not exploitable at this data scale. Neither answer is available today.
 
 ---
 
