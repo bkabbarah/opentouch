@@ -3,7 +3,10 @@
 Title: **Piezoresistive Palm Reading: Tactile Prediction for Dexterous Manipulation**
 
 Every number below is traceable to a result file. Section 5 lists what is
-currently unsafe to display and why. Read that before laying anything out.
+unsafe to display and why. Read that before laying anything out.
+
+Updated 2026-07-28: the forecasting panel (1b) and the participant-disjoint
+retrieval figure are both new and both safe. Nothing is quarantined any more.
 
 ---
 
@@ -53,6 +56,38 @@ Both exclude zero. The raw-kinematics row is the strong one: it rules out
 Across seeds the marginal over the learned encoder is **+0.014 ± 0.002**
 (seeds 42 / 0 / 1 give +0.0171 / +0.0124 / +0.0120). **Quote the mean, not
 seed 42.**
+
+### 1b. Forecasting (Panel: "Does it actually help?")
+
+Predicting the future articulation vector, 3 seeds, moving subset, fingertip
+MSE. The tactile encoder is taken frozen from the retrieval checkpoint.
+
+| condition | trainable | k=8 | k=16 |
+|---|---|---|---|
+| **frozen touch + pose** | 66,045 | **0.000255** | **0.000461** |
+| pose-only | 32,957 | 0.000287 | 0.000521 |
+| frozen **shuffled** + pose | 66,045 | 0.000297 | 0.000547 |
+| copy-zero | — | 0.000312 | 0.000609 |
+
+**Touch beats pose-only by 11% at both horizons, and beats its
+capacity-matched shuffled twin by 14-16%** at identical trainable parameter
+count. The shuffled arm being slightly *worse* than pose-only is the point:
+real touch first pays back the cost of carrying the branch, then profits.
+
+Say that the encoder is frozen. A trained-from-scratch tactile branch loses to
+pose-only (0.000356), and that contrast is worth a sentence: the information
+was always there, the model was drowning in its own parameters.
+
+### Participant-disjoint retrieval (Panel or footnote)
+
+| split | avg-pool | biGRU | ratio |
+|---|---|---|---|
+| test | 6.44 | 28.31 | **4.40x** |
+
+Against 2.71x clip-disjoint. The architectural advantage *widens* when
+participants are held out, while both absolute numbers fall — so the
+clip-disjoint figures were inflated by participant memorisation. Presenting
+both is more honest and more interesting than presenting either alone.
 
 ### The methodological result (Panel: "Why it was missed")
 
@@ -112,8 +147,10 @@ Second figure if you have room: the 2×2 interaction table above, as a heatmap.
 5. **Centrepiece** — conventional vs corrected target across horizons
 6. What touch predicts — 0.60 to 0.69, shuffles at chance, strongest for curl
 7. Not redundant — +0.039 over full raw kinematics, CI excludes zero
-8. Controls — participant-disjoint, held-out test, three seeds, no regime
-9. Conclusion — touch reveals how the hand will reshape, not just what it holds
+8. **It actually helps** — frozen touch beats pose-only by 11%, beats its
+   capacity-matched shuffle by 14-16%
+9. Controls — participant-disjoint, held-out test, three seeds, no regime
+10. Conclusion — touch reveals how the hand will reshape, not just what it holds
 
 ---
 
@@ -121,9 +158,10 @@ Second figure if you have room: the 2×2 interaction table above, as a heatmap.
 
 Reviewers respect these and they cost you nothing.
 
-- **Direction, not magnitude.** Everything displayed decodes sign. The
-  magnitude evidence is frozen-feature ridge regression, not a trained
-  forecaster.
+- **The forecasting result uses a FROZEN encoder.** It is a readout over
+  pretrained features, not a jointly optimised model.
+- **The frozen encoder was pretrained on clip-disjoint data**, so the
+  forecasting panel is not participant-disjoint. The probe panels are.
 - **Linear probes on frozen encoders.** The claim is about linearly
   accessible information, not about a model that exploits it.
 - **"Strongest for curl" is a ranking, not a separated effect.** Curl tops
@@ -138,16 +176,13 @@ Reviewers respect these and they cost you nothing.
 
 ## 5. DO NOT PUT THESE ON THE POSTER
 
-**The participant-disjoint retrieval ratio (5.36x, 28.31 vs 5.29).** The
-avg-pool arm was trained with a ReLU before the projection that the upstream
-architecture never had, so that baseline was handicapped. Retraining is at
-epoch ~166/300. Until it lands, do not display the ratio or the absolute
-scene-disjoint numbers.
+**The old forecasting numbers** (tactile+pose 0.0087 vs pose-only 0.0056).
+Those runs were noncausal, used the rotation-dominated target, and had a
+confounded ablation. Superseded by the panel in section 1b.
 
-**Any forecasting/regression result.** The rebuild is running. Nothing there
-is reportable yet, and the old numbers (tactile+pose 0.0087 vs pose-only
-0.0056) came from runs that were noncausal, used the rotation-dominated
-target, and had a confounded ablation.
+**The 5.36x participant-disjoint retrieval ratio.** Superseded: that avg-pool
+baseline was handicapped by a ReLU the upstream architecture never had. The
+corrected figure is **4.40x**, and it is safe to display.
 
 **The anatomical-prior negative result.** Invalid: the encoder mean-pools over
 its 21 joint queries after a shared projection, making it provably invariant
@@ -178,6 +213,9 @@ this codebase's. The matched figure is 16.76.
 | axis-label validation | `results_handframe_validation.json` |
 | subsets | `results_subset_discover_*.json` |
 | magnitude | `results_magnitude_k8.json` |
+| forecasting | `logs/rf_{frz,frzshuf,ft}_k{8,16}_s{1,2,3}/out.log` |
+| participant-disjoint retrieval | `results_retrieval_scene_avgpool_norelu_*.json`, `results_retrieval_scene_p2t_scene_gru_*.json` |
+| per-joint AUC | `per_joint_k8.{json,csv}` (also copied to `results/`) |
 
 `MORNING_REPORT.md` regenerates all of it:
 

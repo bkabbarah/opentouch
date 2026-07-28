@@ -1,4 +1,4 @@
-# OpenTouch — working state, updated 2026-07-27
+# OpenTouch — working state, updated 2026-07-28
 
 Written so a fresh session (or a fresh person) can pick this up cold. The
 conversation is not the source of truth; this file, `AUDIT.md`,
@@ -9,10 +9,12 @@ out on the cluster at `~/scratch/bashar/opentouch-gru`).
 
 ---
 
-> **Updated 2026-07-27 after the overnight run.** Every open question from the
-> first version has been answered. See `MORNING_REPORT.md` on the cluster for
-> the auto-generated current view; sections 2.10 to 2.14 below carry the new
-> results.
+> **Updated 2026-07-28.** Every open question is now closed, including the
+> forecasting one. The headline change since the first version: with the
+> tactile encoder taken frozen from the retrieval checkpoint, touch **beats
+> pose-only by 11%** at both horizons and beats its capacity-matched shuffled
+> twin by 14-16% (§2.17). That is the practical claim that was unavailable
+> for the whole project. Read §2.17 first, then §2.10 and §2.11.
 
 ## 1. Where things stand in one paragraph
 
@@ -318,27 +320,71 @@ removing whole-hand rotation strips out the predictable inertial component.
 Read tactile-vs-shuffled, not tactile-vs-pose-only: only the shuffled twin is
 capacity-matched.
 
-### 2.17 Frozen-encoder bridge — running as of 2026-07-27 21:00
+### 2.17 Frozen-encoder bridge — COMPLETE. Touch beats pose-only.
 
-The regression trains its tactile encoder from RANDOM init (~500k parameters
-against a 33k pose head, ~116k samples, MSE loss). Every positive result in
-this project comes from that encoder FROZEN from the retrieval checkpoint. The
-forecaster had never been given the encoder that demonstrably contains the
-signal.
+The regression trained its tactile encoder from RANDOM init (~500k parameters
+against a 33k pose head, ~116k samples, MSE loss), while every positive result
+in this project came from that encoder FROZEN from the retrieval checkpoint.
+The forecaster had never been given the encoder that demonstrably contains the
+signal. `--tactile-init-checkpoint` + `--freeze-tactile-encoder` close that.
 
-`--tactile-init-checkpoint` + `--freeze-tactile-encoder` close that gap.
-Verified at launch: 24 tensors loaded strict, trainable parameters drop from
-574,205 to **66,045**, so the tactile arm is now comparable to pose-only's
-32,957 rather than 17x larger.
+Final, epoch 300, rigid target, moving subset, fingertip MSE, 3 seeds:
 
-Three arms x k in {8,16} x 3 seeds: frozen, frozen+shuffled (capacity-matched
-control), fine-tuned. Logs `/tmp/rf_{frz,frzshuf,ft}_k*_s*.log`, runs
-`logs/rf_*`.
+| condition | trainable | k=8 | k=16 |
+|---|---|---|---|
+| **frozen tactile + pose** | 66,045 | **0.000255** | **0.000461** |
+| pose-only | 32,957 | 0.000287 | 0.000521 |
+| frozen shuffled + pose | 66,045 | 0.000297 | 0.000547 |
+| copy-zero | — | 0.000312 | 0.000609 |
+| fine-tuned tactile | 574,205 | 0.000341 | 0.000638 |
+| scratch tactile | 574,205 | 0.000356 | 0.000692 |
+| scratch shuffled | 574,205 | 0.000479 | 0.001135 |
 
-**How to read it.** If frozen wins, the information was always there and the
-forecaster just needed the right encoder -- that is the practical claim. If it
-still loses, that is a specific and strong negative: the information is real
-but not exploitable at this data scale. Neither answer is available today.
+Seed std is ~1e-6 to 2e-5; the condition clusters do not overlap.
+
+| comparison | k=8 | k=16 |
+|---|---|---|
+| frozen tactile vs pose-only | **−11.2%** | **−11.4%** |
+| frozen tactile vs shuffled (capacity-matched) | **−14.3%** | **−15.7%** |
+| frozen shuffled vs pose-only | +3.6% | +5.1% |
+| frozen tactile vs copy-zero | −18.4% | −24.2% |
+
+**Why this is a complete argument, not one number.** The seven conditions form
+a monotone ordering that is identical at both horizons and explains itself:
+
+- `scratch shuffled` is worst: capacity cost, no information.
+- `scratch tactile` beats it: information helps, but capacity still sinks it.
+- `fine-tuned` beats scratch: a good initialisation helps.
+- `frozen shuffled` sits just above pose-only (+3.6%/+5.1%): that is the price
+  of carrying the branch at all, with no usable content.
+- `frozen tactile` is best: the information, without the capacity cost.
+
+The shuffled twin has **identical trainable parameter count** (66,045), so the
+14-16% gap is tactile content and cannot be capacity, regularisation or
+architecture. And `frozen shuffled` being *worse* than pose-only shows real
+touch first pays back the branch's cost and then profits.
+
+Caveats worth stating: the encoder is frozen, so this is a linear-ish readout
+over pretrained features rather than a jointly optimised model; and the
+retrieval checkpoint was trained on the same clips (clip-disjoint split), so a
+participant-disjoint version of this experiment has not been run.
+
+### 2.18 Scene-disjoint retrieval — CORRECTED, §2.13 superseded
+
+Re-trained with the no-ReLU encoder (§2.15), so the avg-pool baseline is no
+longer handicapped:
+
+| split | avg-pool | biGRU | ratio |
+|---|---|---|---|
+| val | 7.02 | 29.09 | 4.14x |
+| test | **6.44** | **28.31** | **4.40x** |
+
+Against clip-disjoint's 2.71x (16.76 → 45.46). So the biGRU advantage *widens*
+under participant hold-out while both absolute numbers fall sharply. The
+clip-disjoint figures were inflated by participant memorisation; the
+architectural claim survives and strengthens.
+
+The earlier 5.36x in §2.13 came from the handicapped baseline. **Use 4.40x.**
 
 ---
 
@@ -372,14 +418,17 @@ Full detail with file:line in `AUDIT.md`.
 `ssh bashark@mib.media.mit.edu`, repo `~/scratch/bashar/opentouch-gru`,
 env `~/miniconda3/envs/opentouch/bin/python`, `PYTHONPATH=src`.
 
-| tmux session | what | state |
-|---|---|---|
-| `scene_gru` | biGRU, scene-disjoint split, 300 ep, GPU 4 | ~epoch 175 |
-| `scene_avg` | avg-pool, scene-disjoint split, GPU 2 | ~epoch 177 |
-| `validity` | probe on seed0 then seed1 | seed0 done, seed1 running |
-| `rawpose` | **the decisive control**, waits for probes to drain | queued |
-| `testconf` | probe on held-out TEST split, k=4 and k=8 | queued |
-| `subset_rigid` / `subset_wrist` | pre-registered subset families | ~family 3 of 4 |
+**Nothing is running.** Every sweep completed. All result files are on the
+cluster and mirrored to `results/` in the repo (gitignored).
+
+Completed run families, all in `~/scratch/bashar/opentouch-gru/logs/`:
+
+| prefix | what |
+|---|---|
+| `rr_{pose,tac,shuf}_k{8,16}_s{1,2,3}` | forecasting rebuild, encoder from scratch (§2.16) |
+| `rf_{frz,frzshuf,ft}_k{8,16}_s{1,2,3}` | frozen-encoder bridge (§2.17) |
+| `p2t_scene_gru`, `p2t_scene_avgpool_norelu` | scene-disjoint retrieval pair (§2.18) |
+| `p2t_scene_avgpool` | **superseded**, ReLU-handicapped baseline, do not use |
 
 **Etiquette.** The box is shared and hit load 770 with three other users
 active. Everything of mine is `nice 15`–`19`, capped at
@@ -400,6 +449,11 @@ than launched concurrently. GPUs 5–7 belong to another user's VLLM. Check
 | `scripts/probe_rawpose.py` | **the decisive control**: touch vs full raw kinematics (504-dim lagged pose), not a lossy embedding |
 | `scripts/validate_handframe.py` | empirically checks the palm-axis labels |
 | `scripts/tactile_subset_probe.py` | pre-registered subset families, causal subset definitions, BH correction, discover-on-val / confirm-on-test |
+| `scripts/probe_magnitude.py` | ridge onto the delta vector rather than its sign; the gate that said the forecasting rebuild was worth doing |
+| `scripts/export_per_joint.py` | per-(joint, axis) AUC table with clip-clustered CIs; `per_joint_k8.{json,csv}` |
+| `scripts/hand_auc_figure.py` | hand diagram shaded by a per-joint quantity, plus a CSV with 2D layout |
+| `scripts/collect_results.py` | regenerates `MORNING_REPORT.md` from every result JSON |
+| `scripts/overnight.sh` | chains work that depends on a training run finishing |
 | `src/opentouch/pose_encoder.py` | now has `temporal_mode={gru,mean}` so both ablation arms run in one repo |
 | `src/opentouch_train/data.py` | now has `--split-group-by {clip,scene}` |
 
@@ -407,24 +461,27 @@ Tests: 190+, all passing. `python -m pytest tests/ -q`.
 
 ---
 
-## 6. Open questions, in priority order
+## 6. Open questions
 
-Items 1, 3, 4 and 5 from the first version are all **done** and reported in
-§2.10 to §2.14. What remains:
+Everything from the first two versions is closed. What is genuinely left:
 
-1. **Rebuild the forecasting arm.** Now well motivated: §2.11 shows touch
-   carries magnitude information, so the earlier null was a design problem
-   (rotation-dominated target, confounded ablation, noncausal tactile) rather
-   than absence of signal. Needs the corrected target plumbed into
-   `regression_data`/`pose_regression`, an ablation where zeroing the gate
-   removes only tactile, T=36 so k=16 is feasible with min-history, and
-   three seeds per condition.
-2. **Retrieval bootstrap CIs.** `bootstrap_eval.py` exists and has never run.
-   Retrieval is the actual SOTA-relative-to-OpenTouch claim and currently has
+1. **Participant-disjoint frozen-encoder forecasting.** §2.17 used the
+   clip-disjoint retrieval checkpoint, so the encoder saw val participants'
+   clips during retrieval training. The scene-disjoint biGRU checkpoint
+   (`logs/p2t_scene_gru`) now exists, so this is a rerun of §2.17 with
+   `--tactile-init-checkpoint` pointed at it and `--split-group-by scene`.
+   Roughly 6 hours. **This is the highest-value remaining experiment**: it is
+   the only thing standing between the current result and "touch improves
+   forecasting for a person the model has never seen".
+2. **Retrieval bootstrap CIs.** `bootstrap_eval.py` exists and has never been
+   run. Retrieval is the SOTA-relative-to-OpenTouch claim and currently has
    only a 3-seed std.
-3. **Subset confirm stage** is moot: nothing survived discovery.
-
----
+3. **Per-joint export at other horizons.** `scripts/export_per_joint.py` has
+   been run at k=8 only (`per_joint_k8.{json,csv}`). k=16 is where the curl
+   effect is largest.
+4. **A jointly-optimised model.** §2.17 freezes the encoder. Whether joint
+   optimisation can beat it, given more data or stronger regularisation, is
+   unknown.
 
 ## 7. "Is this state of the art?"
 
