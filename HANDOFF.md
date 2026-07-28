@@ -87,17 +87,25 @@ Curl (flexion) is top at all four horizons, but the gap over radial is only
 +0.0011 / +0.0005 / +0.0015 at k=2/4/8 and the intervals overlap. Consistent
 ordering, **not** a separated effect. Do not defend it as significant.
 
-### 2.3 Confidence intervals (k=8, clip-clustered, 1000 draws, 296 val clips)
+### 2.3 Confidence intervals (k=8, clip-clustered, 1000 draws, 295 val clips)
 
-| axis | vs matched pose | vs shuffled twin | joints CI>0 |
+`joints CI>0` is counted against matched pose (the vs-shuffled count is given
+separately where it differs).
+
+| axis | vs matched pose | vs shuffled twin | joints CI>0 (vs pose / vs shuf) |
 |---|---|---|---|
-| curl | +0.0187 [+0.0064, +0.0311] | +0.0215 [+0.0082, +0.0354] | 17/20 |
-| radial | +0.0171 [+0.0040, +0.0314] | +0.0195 [+0.0055, +0.0346] | 17/20 |
-| spread | +0.0126 [+0.0009, +0.0245] | +0.0161 [+0.0022, +0.0300] | 15/20 |
+| curl | +0.0187 [+0.0064, +0.0311] | +0.0215 [+0.0082, +0.0354] | 17/20 / 17/20 |
+| radial | +0.0171 [+0.0040, +0.0314] | +0.0195 [+0.0055, +0.0346] | 17/20 / 17/20 |
+| spread | +0.0126 [+0.0009, +0.0245] | +0.0161 [+0.0022, +0.0300] | **12/20** / 15/20 |
 
 Clustering at the clip level is essential: 11,425 eval samples come from only
-296 clips, and adjacent t share 19 of 20 causal frames. A per-sample bootstrap
+295 clips, and adjacent t share 19 of 20 causal frames. A per-sample bootstrap
 reports roughly six times tighter and is wrong.
+
+Earlier versions of this table reported spread as 15/20 against matched pose;
+that was the vs-shuffled count. `results_rigid_ci_k8_T36.json` has
+`flex.vs_pose.n_joints_ci_excludes_zero = 12`. Curl and radial happen to be 17
+in both columns, which is why the transcription error survived.
 
 ### 2.4 Decomposition: rotation removal vs frame change (k=8)
 
@@ -156,6 +164,16 @@ stable (0.6605 / 0.6598 / 0.6614), so the abstract's AUC range is unaffected.
 This caught a real bug: the axes were originally named (long, flex, normal)
 with `flex` on the abduction axis, because `curl × radial` lies *in* the palm
 plane. Rows are unchanged; only labels moved. No number was affected.
+
+**Read the JSON's verdict key with care.** `results_handframe_validation.json`
+as committed contains `"labels_behave_anatomically": false`. That is not a
+failure of the corrected labels. The script's verdict tested index 1 (`flex`)
+for flexion behaviour — the pre-rename hypothesis this very script refuted —
+and index 1 is the abduction axis, which of course fails a flexion test. The
+verdict now tests index 2 (`normal` → curl) for flexion and checks that
+fanning peaks on `flex` → spread; both hold, so it reports `true`. The three
+correlations quoted above were always correct and are unchanged. Rerun
+`scripts/validate_handframe.py` to refresh the stored JSON.
 
 ### 2.9 Regression / forecasting (Phase 2B) — the OLD, superseded runs
 
@@ -298,7 +316,8 @@ Final, epoch 300, rigid target, moving subset, fingertip MSE (lower better):
 | tactile+pose | 0.000356 | 0.000692 |
 | shuffled-tactile | 0.000479 | 0.001135 |
 
-Seed std ≤ 0.000027 throughout. Gates converge to a consistent sign
+Seed std ≤ 0.000033 throughout (the max is `rr_shuf_k16`; every other
+condition is ≤ 0.000019). Gates converge to a consistent sign
 (−0.019 to −0.023) rather than flipping across seeds as they did in the old
 runs, which is what an unconfounded ablation should look like.
 
@@ -468,11 +487,27 @@ Everything from the first two versions is closed. What is genuinely left:
 1. **Participant-disjoint frozen-encoder forecasting.** §2.17 used the
    clip-disjoint retrieval checkpoint, so the encoder saw val participants'
    clips during retrieval training. The scene-disjoint biGRU checkpoint
-   (`logs/p2t_scene_gru`) now exists, so this is a rerun of §2.17 with
+   (`logs/p2t_scene_gru`, `split_group_by: scene` confirmed in its
+   `params.txt`) now exists, so this is a rerun of §2.17 with
    `--tactile-init-checkpoint` pointed at it and `--split-group-by scene`.
-   Roughly 6 hours. **This is the highest-value remaining experiment**: it is
-   the only thing standing between the current result and "touch improves
-   forecasting for a person the model has never seen".
+   **This is the highest-value remaining experiment**: it is the only thing
+   standing between the current result and "touch improves forecasting for a
+   person the model has never seen".
+
+   > **Corrected 2026-07-28.** Earlier versions of this file described this as
+   > a pure rerun. It was not: `--split-group-by` did not exist in
+   > `regression_params.py`, and `regression_data.py` called
+   > `_load_and_split_dataset` without `group_by`, so the regression pipeline
+   > could only ever do clip-level splits. Passing the flag would have been a
+   > parser error; worse, had the flag existed but not been forwarded, the run
+   > would have silently produced a clip-split result wearing a scene-split
+   > name. Now wired, with the forwarding pinned by
+   > `tests/test_pose_regression.py::test_regression_data_forwards_split_group_by_to_the_splitter`.
+
+   Scope is 18 runs, not 12: `pose-only` must be rerun under the scene split
+   too, since the existing `rr_pose_*` baselines are clip-split and are no
+   longer a valid comparison. Arms are `frz` / `frzshuf` / `pose`, k ∈ {8,16},
+   3 seeds.
 2. **Retrieval bootstrap CIs.** `bootstrap_eval.py` exists and has never been
    run. Retrieval is the SOTA-relative-to-OpenTouch claim and currently has
    only a 3-seed std.
@@ -496,6 +531,12 @@ Read relative to OpenTouch, which is what was actually asked:
 - **Pose prediction: there is no OpenTouch baseline to beat.** OpenTouch never
   attempted it. So this is a *first* result, not a *better* one. Frame it that
   way; it is a stronger and more honest position than a SOTA claim.
-- **Within our own work**, the best forecaster is pose-only, and adding
-  tactile makes it worse (§2.9). That is the gap between what we have and any
-  performance claim.
+- **Within our own work**, the best forecaster is `frozen tactile + pose`
+  (§2.17): it beats pose-only by 11% at both horizons and beats its
+  capacity-matched shuffled twin by 14-16%. The earlier "adding tactile makes
+  it worse" (§2.9, §2.16) held only when the tactile encoder was trained from
+  scratch inside the forecaster, which was a capacity failure, not an
+  information one. The remaining gap is participant generalization, not
+  performance: the frozen encoder came from a clip-disjoint retrieval run, so
+  the claim is currently "for new clips of participants seen during encoder
+  pretraining". See open question #1.

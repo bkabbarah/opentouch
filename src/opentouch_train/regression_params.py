@@ -36,6 +36,17 @@ def parse_regression_args(args):
              "retrieval and classification pipelines' --split-seed so splits "
              "are directly comparable.",
     )
+    parser.add_argument(
+        "--split-group-by", type=str, default="clip", choices=["clip", "scene"],
+        help="Unit dealt out across train/val/test. 'clip' (default) reproduces "
+             "every existing regression result. 'scene' holds whole scenes "
+             "(location + participant) disjoint, so val/test contain "
+             "participants absent from train -- the setting needed to claim a "
+             "result generalizes to an unseen person. Forwarded to the same "
+             "splitter the retrieval pipeline uses, so a regression run and a "
+             "retrieval run with matching --split-seed and --split-group-by "
+             "see the same partition.",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Model init / training seed.")
 
     parser.add_argument(

@@ -1,8 +1,8 @@
 """Data loading for the pose-transition regression task.
 
 Reuses opentouch_train.data.VideoTactilePoseDataset and
-_load_and_split_dataset UNMODIFIED for windowing and the clip-level
-train/val/test split (--split-seed) -- this module only adds a thin
+_load_and_split_dataset UNMODIFIED for windowing and the
+train/val/test split (--split-seed, --split-group-by) -- this module only adds a thin
 (t, t+k) sampling layer on top of the existing T=20-frame windows built by
 data.py's VideoTactilePoseDataset._build_sliding_windows(). It does not
 touch data.py.
@@ -358,8 +358,11 @@ def get_regression_data(args, epoch: int = 0) -> Dict[str, DataInfo]:
     Mirrors opentouch_train.data.get_data()'s exact
     _load_and_split_dataset(...) + VideoTactilePoseDataset(_preloaded=...)
     pattern, so this task's train/val/test clips are the exact same split
-    (given the same --split-seed) as the retrieval and classification
-    pipelines use -- not a re-derived split.
+    (given the same --split-seed and --split-group-by) as the retrieval and
+    classification pipelines use -- not a re-derived split. This matters for
+    --split-group-by scene in particular: a regression run and the retrieval
+    run whose checkpoint initialises its tactile encoder must agree on the
+    partition, or the "encoder never saw this participant" claim does not hold.
 
     --shuffle-tactile applies to BOTH train and val here (not just train):
     the shuffled-tactile control needs val metrics evaluated under the same
@@ -384,11 +387,12 @@ def get_regression_data(args, epoch: int = 0) -> Dict[str, DataInfo]:
     val_ratio = getattr(args, "val_ratio", 0.1)
     test_ratio = getattr(args, "test_ratio", 0.1)
     seed = getattr(args, "split_seed", 42)
+    group_by = getattr(args, "split_group_by", "clip")
     causal = getattr(args, "causal", True)
     causal_window = getattr(args, "causal_window", None)
     min_history = getattr(args, "min_history", None) if causal else None
 
-    splits = _load_and_split_dataset(dataset_path, val_ratio, test_ratio, seed)
+    splits = _load_and_split_dataset(dataset_path, val_ratio, test_ratio, seed, group_by=group_by)
 
     common_kwargs = dict(
         hf_dataset_path=dataset_path,

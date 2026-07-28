@@ -12,6 +12,8 @@ and exact parameter parity, and that motion filtering is reported (both
 
 from __future__ import annotations
 
+import argparse
+
 import numpy as np
 import pytest
 import torch
@@ -1299,3 +1301,74 @@ def test_checkpoint_without_tactile_weights_raises(tmp_path):
         load_pretrained_tactile_encoder(
             PoseTransitionRegressor(use_tactile=True), str(path), freeze=False
         )
+
+
+# ---------------------------------------------------------------------------
+# --split-group-by wiring
+#
+# The splitter itself is covered by tests/test_data_splits.py. What is tested
+# here is the WIRING: that the regression pipeline actually forwards the flag.
+# It previously did not -- regression_params.py had no --split-group-by at all
+# and regression_data.py called _load_and_split_dataset without group_by, so a
+# scene-disjoint regression run silently trained on a clip-level split and
+# would have looked like a valid unseen-participant result.
+# ---------------------------------------------------------------------------
+
+
+def test_split_group_by_defaults_to_clip():
+    from opentouch_train.regression_params import parse_regression_args
+
+    args = parse_regression_args(["--train-data", "/nonexistent", "--horizon-k", "8"])
+    assert args.split_group_by == "clip", "default must reproduce existing results"
+
+
+@pytest.mark.parametrize("group_by", ["clip", "scene"])
+def test_split_group_by_is_accepted(group_by):
+    from opentouch_train.regression_params import parse_regression_args
+
+    args = parse_regression_args(
+        ["--train-data", "/nonexistent", "--horizon-k", "8", "--split-group-by", group_by]
+    )
+    assert args.split_group_by == group_by
+
+
+def test_split_group_by_rejects_unknown_values():
+    from opentouch_train.regression_params import parse_regression_args
+
+    with pytest.raises(SystemExit):
+        parse_regression_args(
+            ["--train-data", "/nonexistent", "--horizon-k", "8",
+             "--split-group-by", "participant"]
+        )
+
+
+@pytest.mark.parametrize("group_by", ["clip", "scene"])
+def test_regression_data_forwards_split_group_by_to_the_splitter(monkeypatch, group_by):
+    """The flag is only meaningful if it reaches _load_and_split_dataset."""
+    import opentouch_train.regression_data as rd
+
+    seen = {}
+
+    def _spy(dataset_path, val_ratio, test_ratio, seed, group_by="clip"):
+        seen["group_by"] = group_by
+        raise _StopEarly()
+
+    monkeypatch.setattr(rd, "_load_and_split_dataset", _spy)
+
+    args = argparse.Namespace(
+        train_data="/nonexistent", val_data=None, horizon_k=8, pose_only=True,
+        shuffle_tactile=False, sequence_length=36, val_ratio=0.1, test_ratio=0.1,
+        split_seed=42, split_group_by=group_by, causal=True, causal_window=None,
+        min_history=10, batch_size=4, workers=0, distributed=False, world_size=1,
+        rank=0, seed=42,
+    )
+    with pytest.raises(_StopEarly):
+        rd.get_regression_data(args)
+
+    assert seen["group_by"] == group_by, (
+        f"--split-group-by {group_by} did not reach the splitter"
+    )
+
+
+class _StopEarly(Exception):
+    """Aborts get_regression_data once the splitter call has been observed."""

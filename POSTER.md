@@ -43,7 +43,7 @@ Chance is 0.50. Across all three anatomical axes the range is **0.60 to 0.69**.
 ### The contribution over pose (Panel: "Is it redundant?")
 
 Marginal AUC of adding touch to a pose baseline with **identical temporal
-access**, k=8, clip-clustered bootstrap over 296 val clips:
+access**, k=8, clip-clustered bootstrap over 295 val clips:
 
 | baseline | touch adds | 95% CI |
 |---|---|---|
@@ -170,7 +170,7 @@ Reviewers respect these and they cost you nothing.
 - **20 joints is not 20 independent measurements.** The 21 keypoints are
   retargeted from 7 Rokoko sensors.
 - **Clip-clustered intervals are wide on purpose.** 11,425 eval samples come
-  from 296 clips; a per-sample bootstrap would be ~6x tighter and wrong.
+  from 295 clips; a per-sample bootstrap would be ~6x tighter and wrong.
 
 ---
 

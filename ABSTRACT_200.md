@@ -84,13 +84,13 @@ penalty for the extra 64 dimensions.
 
 ## Confidence intervals
 
-Clip-clustered paired bootstrap at k=8, 1000 draws over all 296 val clips:
+Clip-clustered paired bootstrap at k=8, 1000 draws over all 295 val clips:
 
 | axis | vs matched pose | vs shuffled twin | joints CI>0 |
 |---|---|---|---|
 | curl (flexion) | +0.0187 [+0.0064, +0.0311] | +0.0215 [+0.0082, +0.0354] | 17/20 |
 | radial | +0.0171 [+0.0040, +0.0314] | +0.0195 [+0.0055, +0.0346] | 17/20 |
-| spread | +0.0126 [+0.0009, +0.0245] | +0.0161 [+0.0022, +0.0300] | 15/20 |
+| spread | +0.0126 [+0.0009, +0.0245] | +0.0161 [+0.0022, +0.0300] | 12/20 |
 
 Every interval excludes zero, against both the pose baseline and the shuffle.
 The intervals are wide because clip-level clustering is the honest unit of

@@ -108,10 +108,37 @@ print(f"\n3. SPREAD  correlation of finger fanning with index-minus-pinky residu
 for name, c in zip(("long", "flex", "normal"), spread_corrs):
     print(f"   corr(fanning, {name:<6}) = {c:+.3f}")
 
-verdict = (abs(corrs[1]) > 0.3) and (axis_share[1] > 0.15)
-report["labels_behave_anatomically"] = bool(verdict)
-print(f"\nVERDICT: flex axis behaves like a flexion axis: {verdict}")
-print("  (requires |corr(closing, flex)| > 0.3 and flex carrying >15% of tip-MCP geometry)")
+# --- VERDICT
+#
+# The internal axis names (long, flex, normal) predate this script's own
+# finding. It established that the flexion axis is `normal`, not `flex`:
+# `curl x radial` lies IN the palm plane, so the axis originally called
+# `flex` is the abduction/spread axis. The display names are therefore
+#     long -> radial,  flex -> spread,  normal -> curl
+# and the flexion test must be applied to index 2, not index 1.
+#
+# The old verdict tested index 1 and reported False. That False was this
+# script correctly refuting the ORIGINAL labelling -- it was never evidence
+# against the corrected labels, but it read like it in the JSON. It is
+# replaced below by the test the corrected hypothesis actually implies.
+_FLEXION, _ABDUCTION = 2, 1                  # normal->curl, flex->spread
+
+flexion_ok = (abs(corrs[_FLEXION]) > 0.3) and (axis_share[_FLEXION] > 0.15)
+abduction_ok = int(np.argmax(np.abs(spread_corrs))) == _ABDUCTION
+verdict = bool(flexion_ok and abduction_ok)
+
+report["curl_behaves_like_a_flexion_axis"] = bool(flexion_ok)
+report["spread_behaves_like_an_abduction_axis"] = bool(abduction_ok)
+report["labels_behave_anatomically"] = verdict
+report["axis_display_names"] = {"long": "radial", "flex": "spread", "normal": "curl"}
+
+print(f"\nVERDICT: corrected palm-axis labels behave anatomically: {verdict}")
+print(f"  curl (internally 'normal') acts like flexion: {flexion_ok}")
+print(f"    |corr(closing, curl)| = {abs(corrs[_FLEXION]):.3f} > 0.3, "
+      f"tip-MCP energy share = {axis_share[_FLEXION]:.3f} > 0.15")
+print(f"  spread (internally 'flex') acts like abduction: {abduction_ok}")
+print(f"    fanning correlates most with spread "
+      f"(r={spread_corrs[_ABDUCTION]:+.3f})")
 
 if a.output:
     json.dump(report, open(a.output, "w"), indent=2)
