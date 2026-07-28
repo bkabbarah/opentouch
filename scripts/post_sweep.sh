@@ -22,8 +22,11 @@ export WANDB_MODE=offline
 
 log() { echo "[$(date '+%m-%d %H:%M:%S')] $*"; }
 
+# Wait on the SWEEP SCRIPT, not on regression_main. The sweep launches its 18
+# runs back to back, so polling for a training process would eventually sample
+# the gap between two runs and start this work while 17 runs remain.
 log "waiting for the forecasting sweep to finish"
-while pgrep -u "$(whoami)" -f "opentouch_train.regression_main" >/dev/null; do sleep 300; done
+while pgrep -u "$(whoami)" -f "scene_forecast_sweep.sh" >/dev/null; do sleep 300; done
 log "sweep clear, starting post-sweep work"
 
 # ------------------------------------------------------------------ open #3
