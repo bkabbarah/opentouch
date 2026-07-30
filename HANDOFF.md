@@ -567,6 +567,61 @@ only honest path.
 > then §2.19's headline is about pairing, not representation, and the
 > "frozen retrieval features" framing has to go. Two runs, ~1 hour. **Run this
 > before quoting §2.19 anywhere.**
+>
+> **RUN. See §2.19d. It confirmed the pairing explanation.**
+
+### 2.19d Random-encoder control — §2.19's framing does not survive
+
+`logs/rnd_{frz,frzshuf}_k8`, `--freeze-random-tactile-encoder`. Same
+partition (split_seed 42, scene-disjoint), same horizon, same 66,045 trainable
+parameters, seed 1. `tactile_init_checkpoint: None` — **no pretrained weights
+at all**, a randomly initialised tactile encoder simply frozen.
+
+| condition (k=8, seed 1) | frz | frzshuf | gap | vs pose-only (0.000290) |
+|---|---|---|---|---|
+| **random** frozen encoder | **0.000261** | 0.000292 | **−10.62%** | **−10.00%** |
+| pretrained frozen encoder | 0.000270 | 0.000316 | −14.56% | −6.90% |
+
+**Two things, both bad for the current framing.**
+
+1. **A never-trained encoder recovers ~71% of the effect** (10.6 of 14.96
+   percentage points). So most of the frozen-vs-shuffled gap is *not* learned
+   tactile semantics — it is **correct temporal pairing**, which a random
+   projection preserves and the derangement destroys.
+2. **The random encoder is BETTER than the pretrained one**, both absolutely
+   (0.000261 vs 0.000270) and against pose-only (−10.0% vs −6.9%). Retrieval
+   pretraining is not merely unnecessary here; on this evidence it is mildly
+   counterproductive.
+
+**What must change.** §2.19 cannot be described as "frozen retrieval features
+contain predictive tactile information". What it supports is: *a frozen random
+projection of correctly-paired tactile input improves forecasting.* The
+tactile signal helps; the learned representation contributes little.
+
+**This breaks the causal chain between the retrieval result and the
+forecasting result.** They are two separate findings, not one story. Any
+claim of the form "the temporal encoder drives both alignment and prediction"
+is currently unsupported on the prediction half.
+
+Caveat: n=1 seed for this control. Seed spread on the pretrained arms was
+~1e-6 on means of ~3e-4, so seed noise is very unlikely to account for a
+3.9-point difference, but two more seeds would settle it cheaply.
+
+> ### The control this now demands on the PROBE side
+>
+> The direction probe (§2.2-§2.12, and the whole poster) also uses the frozen
+> **pretrained** tactile encoder, and the analogous control has **never been
+> run**. If a randomly initialised frozen tactile encoder also yields ~+0.017
+> marginal AUC, then the probe result is likewise about raw tactile signal
+> rather than the learned representation.
+>
+> The probe's *numbers* would survive either way — "touch predicts finger
+> motion beyond pose kinematics" is a claim about tactile information, not
+> about the encoder. What would not survive is the **hypothesis**: that
+> matching temporal structure in the encoder is what unlocks predictive
+> tactile information. That claim is on the poster.
+>
+> The probe is minutes, not hours. **Run it before the poster session.**
 
 ### 2.20 Retrieval bootstrap CIs — open question #2 closed
 
