@@ -216,6 +216,22 @@ def main(args):
             args.tactile_init_checkpoint, n_tensors, args.freeze_tactile_encoder,
         )
 
+    elif args.freeze_random_tactile_encoder:
+        # The control for what the frozen-vs-shuffled gap measures. No weights
+        # are loaded; the randomly initialised tactile encoder is simply frozen,
+        # so the branch carries a fixed random projection of the tactile stream.
+        # If this still beats its shuffled twin by the usual ~14%, that gap is
+        # about correct temporal PAIRING rather than anything the retrieval
+        # pretraining learned.
+        model.tactile_encoder.eval()
+        for parameter in model.tactile_encoder.parameters():
+            parameter.requires_grad_(False)
+        logging.warning(
+            "RANDOM-ENCODER CONTROL: tactile encoder is randomly initialised and "
+            "FROZEN -- no pretrained weights loaded. This run is only interpretable "
+            "as the pairing-vs-representation control."
+        )
+
     random_seed(args.seed, args.rank)
 
     if is_master(args):
@@ -375,6 +391,7 @@ def main(args):
                 # is a load_state_dict size mismatch rather than a silently
                 # wrong evaluation. Recorded so eval need not guess.
                 "tactile_correction_input": getattr(args, "tactile_correction_input", "pose_tactile"),
+                "freeze_random_tactile_encoder": getattr(args, "freeze_random_tactile_encoder", False),
             }
             if scaler is not None:
                 checkpoint_dict["scaler"] = scaler.state_dict()

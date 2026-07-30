@@ -1372,3 +1372,75 @@ def test_regression_data_forwards_split_group_by_to_the_splitter(monkeypatch, gr
 
 class _StopEarly(Exception):
     """Aborts get_regression_data once the splitter call has been observed."""
+
+
+# ---------------------------------------------------------------------------
+# --freeze-random-tactile-encoder: the pairing-vs-representation control
+#
+# The encoder-quality ladder found frz-vs-frzshuf flat (~-14%) across
+# checkpoints spanning val mAP 10.8 to 28.2, so retrieval pretraining barely
+# affects that gap. A randomly initialised FROZEN encoder is the control: if it
+# also scores ~-14%, the gap is about correct temporal pairing rather than
+# anything the pretraining learned. Freezing noise must never be reachable by
+# accident, hence a separate opt-in flag with its own guards.
+# ---------------------------------------------------------------------------
+
+
+def test_random_freeze_implies_freeze_and_loads_nothing():
+    from opentouch_train.regression_params import parse_regression_args
+
+    args = parse_regression_args(
+        ["--train-data", "/nonexistent", "--horizon-k", "8",
+         "--freeze-random-tactile-encoder"]
+    )
+    assert args.freeze_random_tactile_encoder is True
+    assert args.freeze_tactile_encoder is True, "must imply the freeze itself"
+    assert args.tactile_init_checkpoint is None, "the control loads no weights"
+
+
+def test_random_freeze_conflicts_with_a_checkpoint():
+    from opentouch_train.regression_params import parse_regression_args
+
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        parse_regression_args(
+            ["--train-data", "/nonexistent", "--horizon-k", "8",
+             "--freeze-random-tactile-encoder",
+             "--tactile-init-checkpoint", "some.pt"]
+        )
+
+
+def test_random_freeze_rejects_pose_only():
+    from opentouch_train.regression_params import parse_regression_args
+
+    with pytest.raises(ValueError, match="meaningless with --pose-only"):
+        parse_regression_args(
+            ["--train-data", "/nonexistent", "--horizon-k", "8",
+             "--freeze-random-tactile-encoder", "--pose-only"]
+        )
+
+
+def test_plain_freeze_still_requires_a_checkpoint():
+    """The original guard must survive: freezing noise stays unreachable
+    unless the dedicated flag is passed."""
+    from opentouch_train.regression_params import parse_regression_args
+
+    with pytest.raises(ValueError, match="requires --tactile-init-checkpoint"):
+        parse_regression_args(
+            ["--train-data", "/nonexistent", "--horizon-k", "8",
+             "--freeze-tactile-encoder"]
+        )
+
+
+def test_a_frozen_random_encoder_has_the_same_trainable_count_as_a_frozen_pretrained_one():
+    """The control is only capacity-matched if freezing random weights leaves
+    exactly the parameters that freezing pretrained weights leaves."""
+    pretrained = PoseTransitionRegressor(use_tactile=True, tactile_correction_input="tactile_only")
+    randomized = PoseTransitionRegressor(use_tactile=True, tactile_correction_input="tactile_only")
+    for model in (pretrained, randomized):
+        model.tactile_encoder.eval()
+        for p in model.tactile_encoder.parameters():
+            p.requires_grad_(False)
+
+    a = sum(p.numel() for p in pretrained.parameters() if p.requires_grad)
+    b = sum(p.numel() for p in randomized.parameters() if p.requires_grad)
+    assert a == b

@@ -81,8 +81,19 @@ def parse_regression_args(args):
         "--freeze-tactile-encoder", action="store_true",
         help="Freeze the tactile encoder after loading. Matches the frozen-feature probe "
              "exactly, and removes ~500k trainable parameters, which is the capacity cost "
-             "that has been sinking the tactile arm. Requires --tactile-init-checkpoint; "
-             "freezing random weights would be meaningless.",
+             "that has been sinking the tactile arm. Requires --tactile-init-checkpoint "
+             "unless --freeze-random-tactile-encoder is given.",
+    )
+    parser.add_argument(
+        "--freeze-random-tactile-encoder", action="store_true",
+        help="Freeze a RANDOMLY INITIALISED tactile encoder -- the control for what the "
+             "frozen-vs-shuffled gap actually measures. The encoder-quality ladder found "
+             "that gap is flat (~-14%) across checkpoints spanning val mAP 10.8 to 28.2, "
+             "so retrieval pretraining barely affects it. If a random frozen encoder also "
+             "scores ~-14%, the gap is about CORRECT TEMPORAL PAIRING (which any encoder "
+             "preserves and the derangement destroys), not about learned tactile "
+             "semantics. Deliberately a separate flag from --freeze-tactile-encoder so "
+             "that freezing noise can never happen by accident.",
     )
     parser.add_argument(
         "--grad-clip-scope", type=str, default="global",
@@ -253,10 +264,26 @@ def parse_regression_args(args):
                 "--sequence-length, reduce --horizon-k, or lower --min-history."
             )
 
-    if parsed.freeze_tactile_encoder and not parsed.tactile_init_checkpoint:
+    if parsed.freeze_random_tactile_encoder and parsed.pose_only:
+        raise ValueError(
+            "--freeze-random-tactile-encoder needs a tactile branch to freeze; "
+            "it is meaningless with --pose-only"
+        )
+    if parsed.freeze_random_tactile_encoder and parsed.tactile_init_checkpoint:
+        raise ValueError(
+            "--freeze-random-tactile-encoder and --tactile-init-checkpoint are "
+            "mutually exclusive: the whole point of the random control is that no "
+            "pretrained weights are loaded"
+        )
+    if parsed.freeze_random_tactile_encoder:
+        parsed.freeze_tactile_encoder = True
+
+    if parsed.freeze_tactile_encoder and not parsed.tactile_init_checkpoint             and not parsed.freeze_random_tactile_encoder:
         raise ValueError(
             "--freeze-tactile-encoder requires --tactile-init-checkpoint: freezing a "
-            "randomly initialised encoder would train a pose head against fixed noise"
+            "randomly initialised encoder would train a pose head against fixed noise. "
+            "If that is what you actually want -- as the control for what the "
+            "frozen-vs-shuffled gap measures -- pass --freeze-random-tactile-encoder."
         )
     if parsed.tactile_init_checkpoint and parsed.pose_only:
         raise ValueError(
