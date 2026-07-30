@@ -518,6 +518,56 @@ Gates flip sign across model seeds (+0.026 / −0.027) with consistent
 magnitude. That is the expected sign symmetry — gate and branch output can
 co-flip for identical products — not instability.
 
+### 2.19c Encoder-quality ladder — hypothesis REFUTED, and a new problem
+
+`results_encoder_ladder.json`, `scripts/encoder_ladder.sh`. Partition held
+fixed at split_seed 42; only the frozen encoder varies, using intermediate
+`p2t_scene_gru` checkpoints as a quality ladder. k=8, one model seed.
+
+| encoder epoch | encoder val t2p mAP | frz vs frzshuf | frz vs pose-only |
+|---|---|---|---|
+| 20 | **10.81** | **−14.56%** | −8.97% |
+| 40 | 16.07 | −15.06% | −8.62% |
+| 60 | 20.26 | −14.06% | −7.24% |
+| 100 | 25.19 | −11.04% | −5.52% |
+| 300 | **28.24** | **−14.83%** | −6.90% |
+
+**The gain is flat across a 2.6x range of encoder quality.** Pearson
+r = +0.388 (n=5) — weak, and the wrong sign for the hypothesis.
+
+**So representation quality does NOT explain the split-seed instability.** The
+ladder's prediction test fails everywhere except its own endpoint:
+
+| partition | encoder mAP | observed | ladder predicts |
+|---|---|---|---|
+| seed 3 | 18.74 | **+5.02%** | −14.06% |
+| seed 2 | 20.78 | −10.03% | −14.06% |
+| seed 1 | 24.29 | −5.77% | −11.04% |
+| seed 42 | 28.24 | −14.96% | −14.83% (same partition — not an independent test) |
+
+**Conclusion: the participant draw is what drives the instability**, not
+encoder quality. The forecasting result is genuinely fragile at 26 scenes with
+3 held out, and no cheap reanalysis fixes that — k-fold over scenes is the
+only honest path.
+
+> ### The new problem this raises
+>
+> An encoder at **mAP 10.81** — epoch 20 of 300, barely trained — delivers the
+> **same ~14% advantage over its shuffled twin** as one at 28.24. And it is
+> marginally *better* on frz-vs-pose-only (−8.97% vs −6.90%).
+>
+> That is not what "frozen retrieval features contain predictive tactile
+> information" predicts. If retrieval pretraining barely matters, the
+> frz-vs-frzshuf gap may not be measuring learned tactile semantics at all —
+> it may be measuring nothing more than **correct temporal pairing**, which
+> almost any encoder would preserve and the derangement destroys.
+>
+> **The decisive control is a randomly-initialised frozen encoder.** If a
+> random frozen tactile branch also scores ~−14% against its shuffled twin,
+> then §2.19's headline is about pairing, not representation, and the
+> "frozen retrieval features" framing has to go. Two runs, ~1 hour. **Run this
+> before quoting §2.19 anywhere.**
+
 ### 2.20 Retrieval bootstrap CIs — open question #2 closed
 
 Clip-clustered, 1000 draws, fixed gallery (queries resampled only). T→P mAP:
