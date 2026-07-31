@@ -51,11 +51,34 @@ p.add_argument("--all-variants", action="store_true",
                help="Also probe the two intermediate targets (rotation removed but world "
                     "axes; rotation kept but palm axes), which separates the frame change "
                     "from the rotation removal instead of confounding them.")
+p.add_argument("--random-tactile-encoder", action="store_true",
+               help="Replace the pretrained tactile encoder with a RANDOMLY INITIALISED "
+                    "frozen one, leaving the pose encoder pretrained. The control for "
+                    "whether this probe measures the LEARNED tactile representation or "
+                    "merely raw tactile signal pushed through a fixed projection. On the "
+                    "forecasting side the analogous control recovered ~71% of the effect "
+                    "and actually beat the pretrained encoder (HANDOFF 2.19d), so the "
+                    "same question is open here. If marginal AUC survives at full "
+                    "strength with random weights, the project's hypothesis -- that an "
+                    "encoder representing temporal structure is what unlocks predictive "
+                    "tactile information -- is not supported by this probe.")
 p.add_argument("--output", required=True)
 a = p.parse_args()
 dev = torch.device(a.device)
 
-tac = load_tactile_encoder(a.checkpoint, a.emb_dim, dev)
+if a.random_tactile_encoder:
+    from opentouch.tactile_encoder import CNNetEmbedding
+    tac = CNNetEmbedding(emb_dim=a.emb_dim).to(dev).eval()
+    for _p in tac.parameters():
+        _p.requires_grad_(False)
+    log.warning(
+        "RANDOM-TACTILE CONTROL: the tactile encoder is randomly initialised and frozen "
+        "-- no pretrained weights. The pose encoder is still the pretrained one, so any "
+        "marginal AUC here is what raw tactile signal buys through a fixed random "
+        "projection, with the learned tactile representation removed."
+    )
+else:
+    tac = load_tactile_encoder(a.checkpoint, a.emb_dim, dev)
 pen = load_pose_encoder(a.checkpoint, a.emb_dim, dev)
 splits = _load_and_split_dataset(a.data, 0.1, 0.1, a.split_seed, a.split_group_by)
 
@@ -117,6 +140,7 @@ AXES = ALL_AXES if a.all_variants else {
 }
 out = {"horizon_k": a.horizon_k, "sequence_length": a.sequence_length,
        "split_group_by": a.split_group_by, "checkpoint": a.checkpoint,
+       "random_tactile_encoder": a.random_tactile_encoder,
        "eval_split": a.eval_split,
        "n_val_moving": int(va["moving"].sum()), "results": {}}
 
