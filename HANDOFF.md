@@ -622,6 +622,61 @@ Caveat: n=1 seed for this control. Seed spread on the pretrained arms was
 > tactile information. That claim is on the poster.
 >
 > The probe is minutes, not hours. **Run it before the poster session.**
+>
+> **RUN. See §2.19e. The hypothesis is not supported.**
+
+### 2.19e Probe random-encoder control — the HYPOTHESIS is unsupported
+
+`results_probe_rigid_k8_RANDENC.json`, `probe_rigid.py --random-tactile-encoder`.
+Tactile encoder randomly initialised and frozen; **pose encoder still the
+pretrained one**, so the only thing removed is the learned tactile
+representation. k=8, corrected target, clip split, n=11,425 — identical
+to §2.2 in every other respect.
+
+| | touch alone | shuffled | marginal over matched pose |
+|---|---|---|---|
+| pretrained encoder, seed 42 | 0.6605 | 0.5009 | **+0.0171** |
+| **random encoder** | **0.6392** | 0.4865 | **+0.0122** |
+
+Per-axis marginal, random: radial +0.0122, spread +0.0087, curl +0.0115.
+
+**Put this next to §2.6's encoder-seed variance and the result is stark.**
+Across three *pretrained* encoder seeds the marginal is +0.0171 / +0.0124 /
++0.0120 (mean +0.0138, std 0.0023). A **random** encoder gives **+0.0122** —
+inside that range, and all but identical to seeds 0 and 1.
+
+**The probe's marginal AUC is not distinguishable from what a fixed random
+projection of the tactile signal achieves.** Only seed 42, already flagged as
+the outlier high, exceeds it.
+
+So the project's stated hypothesis — *matching temporal structure across
+modalities is what unlocks predictive tactile information; an encoder that
+represents motion should align better and predict* — **is not supported by
+this probe.** The encoder's learned representation is not what makes touch
+predictive of motion direction. Raw tactile signal is.
+
+**What survives, and it is most of the work:**
+
+- **The target-correction finding.** It is about the *target*, not the
+  encoder: rotation is ~95% of the conventional target's energy, and the
+  conventional-vs-corrected inversion (§2.2, §2.4) is reproduced by the random
+  encoder too (+0.0122 corrected vs +0.0067 conventional). This is the
+  centrepiece and it is untouched.
+- **Touch alone decodes direction** at 0.64 (random) to 0.66 (pretrained)
+  against 0.50 chance. Note the pretrained encoder *is* better here (+0.021),
+  so the learned representation does help decode direction from touch in
+  absolute terms — it just does not add to a pose baseline any better than
+  random does.
+- **Retrieval.** 2.7x clip-disjoint, 4.4x scene-disjoint, with intervals.
+  Directly measured, entirely unaffected.
+
+**What must be withdrawn or reworded:** any claim that the temporal encoder is
+what unlocks *prediction*. The alignment half stands on its own retrieval
+evidence; the prediction half does not follow from it.
+
+Not yet run: the same control against the 504-d raw-kinematics baseline
+(§2.10, the +0.039). Given the pattern here, assume it is at risk until
+measured.
 
 ### 2.20 Retrieval bootstrap CIs — open question #2 closed
 
