@@ -80,11 +80,27 @@ parser.add_argument("--emb-dim", type=int, default=64)
 parser.add_argument("--batch-size", type=int, default=256)
 parser.add_argument("--n-boot", type=int, default=1000)
 parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+parser.add_argument("--random-tactile-encoder", action="store_true",
+                    help="Replace the pretrained tactile encoder with a RANDOMLY "
+                         "INITIALISED frozen one. The control for whether the +0.039 "
+                         "over raw kinematics reflects the LEARNED representation or "
+                         "raw tactile signal through a fixed projection. On the probe "
+                         "(HANDOFF 2.19e) and forecasting (2.19d) sides the random "
+                         "encoder recovered ~71% of the effect.")
 parser.add_argument("--output", required=True)
 args = parser.parse_args()
 device = torch.device(args.device)
 
-tactile_encoder = load_tactile_encoder(args.checkpoint, args.emb_dim, device)
+if args.random_tactile_encoder:
+    from opentouch.tactile_encoder import CNNetEmbedding
+    tactile_encoder = CNNetEmbedding(emb_dim=args.emb_dim).to(device).eval()
+    for _p in tactile_encoder.parameters():
+        _p.requires_grad_(False)
+    print("RANDOM-TACTILE CONTROL: tactile encoder randomly initialised and frozen. "
+          "The raw-kinematics baseline is unchanged; only the learned tactile "
+          "representation is removed.", flush=True)
+else:
+    tactile_encoder = load_tactile_encoder(args.checkpoint, args.emb_dim, device)
 pose_encoder = load_pose_encoder(args.checkpoint, args.emb_dim, device)
 splits = _load_and_split_dataset(args.data, 0.1, 0.1, args.split_seed, args.split_group_by)
 
@@ -194,6 +210,7 @@ report = {
     "horizon_k": args.horizon_k,
     "lags": LAGS,
     "split_group_by": args.split_group_by,
+    "random_tactile_encoder": args.random_tactile_encoder,
     "n_val_moving": int(moving_mask.sum()),
     "n_clusters": int(len(np.unique(clusters))),
     "axes": {},
