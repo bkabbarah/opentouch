@@ -734,6 +734,99 @@ Caveat: split and encoder both change versus the clip-split run, so this is a
 stricter test rather than a clean isolation of the split effect. Single
 encoder seed.
 
+### 2.22 Why the forecaster underperforms, and three attempts to fix it
+
+**The diagnosis first.** The 63-d delta target is close to unpredictable:
+pose-only beats copy-zero by only 8-9% at k=8, and the best linear model in
+this project reaches **R² = 0.19** (`results_magnitude_k8.json`,
+`pose_raw_plus_tactile`). ~81% of finger articulation at 267ms is not
+predictable from pose or touch.
+
+MSE-optimal prediction is the conditional mean. On a high-entropy,
+near-symmetric target that mean sits near zero — which is *why* copy-zero is
+so hard to beat, and why every tactile contribution has been fighting over an
+8-9% sliver. Meanwhile the direction probe sees AUC 0.66 on the same data:
+touch shifts the sign odds substantially while barely moving the mean. **The
+two halves of this project were never in conflict; MSE is simply the wrong
+instrument for the effect.**
+
+Three fixes were tried. Two failed.
+
+**(a) Better fusion — REFUTED.** `results_fusion_sweep.json`, k=8,
+scene-disjoint, frozen scene encoder, 3 seeds.
+
+| fusion | frz | frzshuf | frz vs frzshuf | frz vs pose-only | branch cost |
+|---|---|---|---|---|---|
+| gate | **0.000270** | 0.000318 | −14.90% | **−6.78%** | +9.54% |
+| film | 0.000276 | 0.000344 | −19.69% | −4.83% | +18.51% |
+
+FiLM (`h ← (1+Δγ(tactile))·h + β(tactile)`) is worse absolutely and worse
+against pose-only. The gate arm reproduces §2.19 (−14.90% vs −14.96%), so the
+sweep is sound.
+
+> **A trap worth remembering.** FiLM's *capacity-matched* contrast looks
+> better (−19.69% vs −14.90%) — the very number this file elsewhere says to
+> lead with. But it got there by making the shuffled control **worse** (branch
+> cost +18.51% vs +9.54%), not the real arm better. A more expressive fusion
+> gives the model more ways to hurt itself with garbage input. Read
+> frz-vs-frzshuf together with frzshuf-vs-pose, never alone.
+
+**(b) Motion onset — NULL.** `results_onset_sweep.json`. Given a hand
+currently still, will it move over the next k? n=3,077, base rate 0.463.
+
+| arm | AUC | seed sd |
+|---|---|---|
+| frozen touch | 0.5234 | 0.0029 |
+| frozen shuffled | 0.5121 | 0.0221 |
+| pose-only | 0.5117 | 0.0124 |
+
+All three at chance. Touch's +0.0117 is inside one seed sd of the controls.
+**Pose-only is also at chance**, so this is not "touch failed to add" — it is
+that nothing predicts motion initiation at this horizon in this data. The
+hypothesis (contact forces precede visible motion) was reasonable and is
+simply wrong here. The task was well-posed — symmetric k-frame windows, near
+balanced base rate — so this is a real negative, not a measurement failure.
+
+**(c) Grip aperture — REAL SIGNAL.** `results_aperture_sweep.json`. Target is
+the change in mean fingertip-to-wrist distance: one scalar a policy acts on,
+and **rotation invariant by construction**, so it needs none of the Kabsch
+correction the delta targets require.
+
+| arm | MSE | R² vs zero | AUC on sign |
+|---|---|---|---|
+| **frozen touch + pose** | **0.000115** | **0.155** | **0.645** |
+| pose-only | 0.000120 | 0.116 | 0.589 |
+| frozen shuffled | 0.000138 | **−0.012** | 0.545 |
+| copy-zero | 0.000136 | 0.000 | — |
+
+Touch beats pose-only: R² 0.116 → 0.155 (+33% relative), **AUC +0.056**. The
+shuffled arm has *negative* R² — actively worse than predicting no change.
+
+**But the 300-epoch protocol was hiding most of it.** Dense validation (every
+2 epochs, 3 seeds) shows the arms have opposite dynamics:
+
+| epoch | frozen touch | shuffled | pose-only |
+|---|---|---|---|
+| 2 | **0.213** / 0.692 | 0.007 / 0.517 | 0.002 / 0.520 |
+| **4** | **0.248** / 0.678 | 0.055 / 0.541 | 0.054 / 0.544 |
+| 60 | 0.163 / 0.654 | −0.006 / 0.558 | 0.107 / 0.577 |
+| 300 | 0.155 / 0.645 | −0.012 / 0.545 | 0.116 / 0.589 |
+
+Touch reaches R²=0.21 by epoch **2** and peaks at epoch 4, then decays —
+consistent with the effective-sample-size problem (windows overlap 19 of 20
+frames, so 116k samples are nowhere near 116k independent ones). Pose-only
+starts at zero and is still climbing at 60. Comparing them at one shared epoch
+mis-states both: the gap is 4.6x at epoch 4 and 1.3x by epoch 300.
+
+**Do not quote epoch 4 from the table above.** That peak was selected on val
+and those metrics are also val — selection on the eval set, the same error as
+quoting seed 42. `scripts/aperture_earlystop.sh` selects the epoch on val and
+reports on TEST; use its numbers.
+
+**Still required before believing the aperture result:** the split-seed check.
+§2.19 looked this clean too until redrawing the participant partition moved it
+from −15% to +5%.
+
 ### 2.20 Retrieval bootstrap CIs — open question #2 closed
 
 Clip-clustered, 1000 draws, fixed gallery (queries resampled only). T→P mAP:
