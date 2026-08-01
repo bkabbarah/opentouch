@@ -162,6 +162,7 @@ class PoseTransitionRegressor(nn.Module):
         tactile_emb_dim: int = 64,
         hidden_dim: int = 128,
         tactile_correction_input: str = "pose_tactile",
+        fusion: str = "gate",
     ) -> None:
         super().__init__()
         self.use_tactile = use_tactile
@@ -230,10 +231,49 @@ class PoseTransitionRegressor(nn.Module):
             # construction. Logged at eval; a gate that stays ~0 means
             # tactile carries no transition signal beyond what pose implies.
             self.gate = nn.Parameter(torch.zeros(1))
+
+            # FUSION. 'gate' (default, and every historical run) adds a
+            # globally-scaled tactile correction to the pose prediction. It can
+            # only express "touch shifts the output by this much" -- it cannot
+            # express "touch changes how pose should be read", which is the
+            # conditional form the effect plausibly takes ("with contact here,
+            # this finger is about to decelerate").
+            #
+            # 'film' lets tactile MODULATE the pose trunk instead:
+            #     h <- (1 + dgamma(tactile)) * h + beta(tactile)
+            # applied to the 128-d hidden state, i.e. self.head's activations
+            # after its second GELU. self.head itself is untouched, so state
+            # dicts stay compatible and pose-only remains bit-identical.
+            #
+            # The final layer is ZERO-initialised, so at init dgamma=0 and
+            # beta=0 and the model computes exactly self.head(pose_flat) -- the
+            # same "starts as the pose-only baseline" property the zero-init
+            # gate provides, which is what makes the shuffled control readable.
+            if fusion not in ("gate", "film"):
+                raise ValueError(f"fusion must be 'gate' or 'film', got {fusion!r}")
+            self.fusion = fusion
+            if fusion == "film":
+                self.film = nn.Sequential(
+                    nn.BatchNorm1d(tactile_head_input_dim),
+                    nn.Linear(tactile_head_input_dim, hidden_dim),
+                    nn.GELU(),
+                    nn.Linear(hidden_dim, 2 * hidden_dim),
+                )
+                nn.init.zeros_(self.film[-1].weight)
+                nn.init.zeros_(self.film[-1].bias)
+                # The additive correction head is unreachable under film, and
+                # leaving it built would add ~33k parameters that never receive
+                # a gradient -- inflating every "trainable parameters" figure
+                # and making the film arm look more expensive than it is.
+                self.tactile_head = None
+            else:
+                self.film = None
         else:
             self.tactile_encoder = None
             self.tactile_head = None
             self.gate = None
+            self.film = None
+            self.fusion = fusion
             self.tactile_correction_input = tactile_correction_input
 
     def forward(
@@ -247,6 +287,26 @@ class PoseTransitionRegressor(nn.Module):
             )
         b = pose_t.shape[0]
         pose_flat = pose_t.reshape(b, POSE_DIM)
+
+        if self.use_tactile and self.fusion == "film":
+            # Run self.head in two pieces so tactile can modulate the hidden
+            # state between them. head[:6] is BN->Linear->GELU->Dropout->
+            # Linear->GELU (128-d); head[6:] is Dropout->Linear (back to 63-d).
+            # Splitting by index rather than restructuring keeps the module --
+            # and therefore every existing checkpoint -- unchanged.
+            assert tactile_pressure is not None, (
+                "use_tactile=True requires a tactile_pressure tensor, got None"
+            )
+            hidden = self.head[:6](pose_flat)
+            tactile_embed = self.tactile_encoder(tactile_pressure)
+            if self.tactile_correction_input == "pose_tactile":
+                mod_input = torch.cat([pose_flat, tactile_embed], dim=-1)
+            else:
+                mod_input = tactile_embed
+            dgamma, beta = self.film(mod_input).chunk(2, dim=-1)
+            hidden = (1.0 + dgamma) * hidden + beta
+            return self.head[6:](hidden).view(b, NUM_KEYPOINTS, COORD_DIM)
+
         delta_pose = self.head(pose_flat).view(b, NUM_KEYPOINTS, COORD_DIM)
 
         if self.use_tactile:

@@ -205,6 +205,7 @@ def main(args):
         tactile_emb_dim=args.tactile_emb_dim,
         hidden_dim=args.hidden_dim,
         tactile_correction_input=args.tactile_correction_input,
+        fusion=args.fusion,
     ).to(device)
 
     if args.tactile_init_checkpoint:
@@ -392,6 +393,7 @@ def main(args):
                 # wrong evaluation. Recorded so eval need not guess.
                 "tactile_correction_input": getattr(args, "tactile_correction_input", "pose_tactile"),
                 "freeze_random_tactile_encoder": getattr(args, "freeze_random_tactile_encoder", False),
+                "fusion": getattr(args, "fusion", "gate"),
             }
             if scaler is not None:
                 checkpoint_dict["scaler"] = scaler.state_dict()

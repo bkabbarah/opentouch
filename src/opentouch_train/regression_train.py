@@ -139,7 +139,7 @@ def _clip_gradients(model, max_norm: float, scope: str) -> None:
     for name, param in model.named_parameters():
         if param.grad is None:
             continue
-        (tactile_params if name.startswith(("tactile_encoder", "tactile_head", "gate"))
+        (tactile_params if name.startswith(("tactile_encoder", "tactile_head", "gate", "film"))
          else pose_params).append(param)
     if pose_params:
         torch.nn.utils.clip_grad_norm_(pose_params, max_norm, norm_type=2.0)

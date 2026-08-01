@@ -1444,3 +1444,98 @@ def test_a_frozen_random_encoder_has_the_same_trainable_count_as_a_frozen_pretra
     a = sum(p.numel() for p in pretrained.parameters() if p.requires_grad)
     b = sum(p.numel() for p in randomized.parameters() if p.requires_grad)
     assert a == b
+
+
+# ---------------------------------------------------------------------------
+# --fusion film
+#
+# The scalar gate can only express "touch shifts the output by this much". FiLM
+# lets touch modulate the pose trunk instead. What must survive the change: the
+# model still starts numerically identical to the pose-only baseline (which is
+# what makes the shuffled control readable), self.head is untouched so existing
+# checkpoints still load, and film.* is grouped with the tactile branch for
+# per-branch gradient clipping.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("fusion", ["gate", "film"])
+def test_both_fusions_start_identical_to_pose_only(fusion):
+    torch.manual_seed(0)
+    model = PoseTransitionRegressor(
+        use_tactile=True, tactile_correction_input="tactile_only", fusion=fusion
+    ).eval()
+    pose_only = PoseTransitionRegressor(use_tactile=False).eval()
+    pose_only.head.load_state_dict(model.head.state_dict())
+
+    pose = torch.randn(4, 21, 3)
+    tactile = torch.rand(4, 20, 1, 16, 16)
+    with torch.no_grad():
+        assert torch.allclose(model(pose, tactile), pose_only(pose), atol=1e-6)
+
+
+def test_film_does_not_change_the_pose_head_state_dict():
+    """self.head must stay byte-compatible so existing checkpoints load."""
+    gate = PoseTransitionRegressor(use_tactile=True, fusion="gate")
+    film = PoseTransitionRegressor(use_tactile=True, fusion="film")
+    assert set(gate.head.state_dict()) == set(film.head.state_dict())
+    for k in gate.head.state_dict():
+        assert gate.head.state_dict()[k].shape == film.head.state_dict()[k].shape
+
+
+def test_film_drops_the_unreachable_additive_head():
+    """Under film the additive correction head is never called; leaving it
+    built would add ~33k parameters that never receive a gradient."""
+    film = PoseTransitionRegressor(use_tactile=True, fusion="film")
+    assert film.tactile_head is None
+    assert film.film is not None
+
+
+def test_film_actually_uses_tactile_once_trained_away_from_init():
+    """At init film is a no-op by construction; perturbing it must change the
+    output, or the branch would be decorative."""
+    torch.manual_seed(0)
+    model = PoseTransitionRegressor(
+        use_tactile=True, tactile_correction_input="tactile_only", fusion="film"
+    ).eval()
+    pose = torch.randn(4, 21, 3)
+    tactile = torch.rand(4, 20, 1, 16, 16)
+    with torch.no_grad():
+        before = model(pose, tactile)
+        model.film[-1].weight.add_(torch.randn_like(model.film[-1].weight) * 0.1)
+        after = model(pose, tactile)
+    assert not torch.allclose(before, after)
+
+
+def test_film_params_are_clipped_with_the_tactile_branch():
+    """per_branch clipping groups by name prefix. If film.* fell in the POSE
+    group, the pose head's clipping would again depend on whether a tactile
+    branch exists -- the exact confound that flag removes."""
+    from opentouch_train.regression_train import _clip_gradients
+
+    model = PoseTransitionRegressor(
+        use_tactile=True, tactile_correction_input="tactile_only", fusion="film"
+    )
+    pose = torch.randn(8, 21, 3)
+    tactile = torch.rand(8, 20, 1, 16, 16)
+    model(pose, tactile).pow(2).mean().backward()
+
+    film_names = [n for n, _ in model.named_parameters() if n.startswith("film")]
+    assert film_names, "film module should expose parameters"
+
+    # Blow up only the film gradients. Under correct per-branch grouping they
+    # are clipped against the tactile budget and the POSE head's gradients are
+    # left untouched; if film were grouped with pose, the pose gradients would
+    # be scaled down by the shared norm.
+    for name, param in model.named_parameters():
+        if name.startswith("film") and param.grad is not None:
+            param.grad.mul_(1000.0)
+    pose_grads_before = {
+        n: p.grad.clone() for n, p in model.named_parameters()
+        if n.startswith("head") and p.grad is not None
+    }
+    _clip_gradients(model, max_norm=1.0, scope="per_branch")
+    for n, before in pose_grads_before.items():
+        assert torch.allclose(before, dict(model.named_parameters())[n].grad), (
+            f"pose gradient {n} was rescaled by film's huge gradient -- film.* "
+            "is being grouped with the pose branch"
+        )

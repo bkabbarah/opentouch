@@ -119,6 +119,18 @@ def parse_regression_args(args):
              "'tactile_only' for any run whose gate ablation will be reported.",
     )
     parser.add_argument(
+        "--fusion", type=str, default="gate", choices=["gate", "film"],
+        help="How tactile enters the model. 'gate' (default, every historical run) adds "
+             "a globally-scaled tactile correction: output = pose_head(pose) + gate * "
+             "tactile_head(tactile). It can only say 'touch shifts the answer by this "
+             "much'. 'film' lets tactile MODULATE the pose trunk instead -- "
+             "h <- (1+dgamma(tactile))*h + beta(tactile) on the 128-d hidden state -- "
+             "which can express 'touch changes how pose should be read', the conditional "
+             "form the effect plausibly takes. Both are zero-initialised so the model "
+             "starts numerically identical to the pose-only baseline, which is what "
+             "keeps the shuffled control interpretable.",
+    )
+    parser.add_argument(
         "--target-mode", type=str, default="articulation_delta",
         choices=["world_delta", "articulation_delta", "rigid_articulation"],
         help="What the model is trained to predict. 'rigid_articulation' additionally "

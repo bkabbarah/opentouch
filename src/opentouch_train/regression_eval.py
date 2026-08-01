@@ -80,6 +80,7 @@ def _read_checkpoint_meta(path) -> dict:
         "min_history": ckpt.get("min_history"),
         "split_group_by": ckpt.get("split_group_by"),
         "tactile_correction_input": ckpt.get("tactile_correction_input"),
+        "fusion": ckpt.get("fusion"),
     }
 
     if any(
@@ -112,6 +113,10 @@ def _read_checkpoint_meta(path) -> dict:
         _coerce("min_history", lambda v: None if v == "None" else int(v))
         _coerce("split_group_by", str)
         _coerce("tactile_correction_input", str)
+        _coerce("fusion", str)
+
+    if meta["fusion"] is None:
+        meta["fusion"] = "gate"   # predates the flag; every such run used the gate
 
     if meta["tactile_correction_input"] is None:
         # Predates the flag; the default at the time was the pose+tactile
@@ -252,6 +257,7 @@ def main(argv=None):
         tactile_emb_dim=meta["tactile_emb_dim"],
         hidden_dim=meta["hidden_dim"],
         tactile_correction_input=meta["tactile_correction_input"],
+        fusion=meta["fusion"],
     ).to(device)
 
     ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
