@@ -1643,3 +1643,80 @@ def test_shuffled_parity_reference_must_match_architecture(fusion, output_dim):
         return sum(p.numel() for p in m.parameters() if p.requires_grad)
 
     assert build() == build()
+
+
+# ---------------------------------------------------------------------------
+# motion_onset: anticipation, not persistence
+# ---------------------------------------------------------------------------
+
+
+def test_onset_windows_are_symmetric_so_one_threshold_means_one_thing():
+    """past_delta must span the same k frames as world_delta. If the past were
+    the 20-frame causal window while the future was 8 frames, 'still' would be
+    a far stricter condition than 'moving' and the base rate would be an
+    artifact of window lengths rather than of the data."""
+    from opentouch_train.regression_train import onset_target_and_mask
+
+    torch.manual_seed(0)
+    n = 200
+    # A hand that is perfectly still in the past and moves in the future.
+    still_past = torch.zeros(n, 21, 3)
+    moving_future = torch.zeros(n, 21, 3)
+    for tip in FINGERTIP_COLUMNS:
+        moving_future[:, tip, 0] = 1.0
+
+    target, mask = onset_target_and_mask(
+        still_past, torch.ones(n, dtype=torch.bool), moving_future, threshold=0.1
+    )
+    assert mask.all(), "a motionless past must count as still"
+    assert target.sum() == n, "a large future motion must count as onset"
+
+
+def test_onset_excludes_samples_with_no_real_past():
+    from opentouch_train.regression_train import onset_target_and_mask
+
+    n = 50
+    past = torch.zeros(n, 21, 3)
+    future = torch.zeros(n, 21, 3)
+    valid = torch.zeros(n, dtype=torch.bool)
+    _, mask = onset_target_and_mask(past, valid, future, threshold=0.1)
+    assert not mask.any(), "samples without a real k-frame past must be excluded"
+
+
+def test_onset_excludes_already_moving_samples():
+    """The whole point: conditioning on still removes the autocorrelation
+    shortcut, so what is measured is anticipation."""
+    from opentouch_train.regression_train import onset_target_and_mask
+
+    n = 40
+    moving_past = torch.zeros(n, 21, 3)
+    for tip in FINGERTIP_COLUMNS:
+        moving_past[:, tip, 0] = 1.0
+    _, mask = onset_target_and_mask(
+        moving_past, torch.ones(n, dtype=torch.bool), moving_past, threshold=0.1
+    )
+    assert not mask.any(), "already-moving samples must not be in the still subset"
+
+
+def test_onset_metrics_separate_an_informative_predictor_from_noise():
+    from opentouch_train.regression_train import _onset_metrics
+
+    torch.manual_seed(0)
+    y = (torch.rand(500, 1) > 0.7).float()
+    mask = torch.rand(500) > 0.3
+    informative = _onset_metrics(y * 3 + torch.randn(500, 1) * 0.4, y, mask)
+    noise = _onset_metrics(torch.randn(500, 1), y, mask)
+    assert informative["auc"] > 0.9
+    assert 0.4 < noise["auc"] < 0.6
+    assert informative["base_rate"] == noise["base_rate"]
+
+
+def test_onset_rejects_a_horizon_with_no_valid_past():
+    from opentouch_train.regression_params import parse_regression_args
+
+    with pytest.raises(ValueError, match="real past"):
+        parse_regression_args([
+            "--train-data", "/nonexistent", "--target-mode", "motion_onset",
+            "--horizon-k", "16", "--sequence-length", "20",
+            "--causal", "--min-history", "2",
+        ])

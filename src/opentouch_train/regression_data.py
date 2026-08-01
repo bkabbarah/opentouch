@@ -274,9 +274,25 @@ class PoseTransitionDataset(Dataset):
         pose_future = self._pose[window_idx, t + self.horizon_k]
         world_delta = pose_future - pose_t
 
+        # The PAST delta over the same horizon, for the motion-onset target.
+        # Symmetric with world_delta on purpose: "was it still over the last k
+        # frames" and "does it move over the next k" must be the same statistic
+        # over the same duration, or one motion threshold cannot mean the same
+        # thing on both sides. Where t < horizon_k there is no such past inside
+        # the window, and past_valid marks those so they can be excluded rather
+        # than silently treated as still.
+        if t >= self.horizon_k:
+            past_delta = pose_t - self._pose[window_idx, t - self.horizon_k]
+            past_valid = True
+        else:
+            past_delta = torch.zeros_like(pose_t)
+            past_valid = False
+
         sample: Dict[str, Any] = {
             "pose_t": pose_t,
             "world_delta": world_delta,
+            "past_delta": past_delta,
+            "past_valid": torch.tensor(past_valid),
             "scene": self._scenes[window_idx],
             "clip_id": self._clip_ids[window_idx],
             "t": t,

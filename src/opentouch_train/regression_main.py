@@ -207,7 +207,7 @@ def main(args):
         hidden_dim=args.hidden_dim,
         tactile_correction_input=args.tactile_correction_input,
         fusion=args.fusion,
-        output_dim=1 if args.target_mode == "grip_aperture" else POSE_DIM,
+        output_dim=1 if args.target_mode in ("grip_aperture", "motion_onset") else POSE_DIM,
     ).to(device)
 
     if args.tactile_init_checkpoint:
@@ -263,7 +263,7 @@ def main(args):
                     # fails on an architecture difference rather than on the
                     # capacity mismatch it exists to catch.
                     fusion=args.fusion,
-                    output_dim=1 if args.target_mode == "grip_aperture" else POSE_DIM,
+                    output_dim=1 if args.target_mode in ("grip_aperture", "motion_onset") else POSE_DIM,
                 )
                 # Parity is over TRAINABLE parameters, so the reference has to
                 # be frozen the same way or a frozen run would fail an assert

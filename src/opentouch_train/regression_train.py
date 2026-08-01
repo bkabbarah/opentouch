@@ -119,6 +119,76 @@ def _select_target(
     )
 
 
+def onset_target_and_mask(past_delta, past_valid, world_delta, threshold):
+    """The motion-onset target and the subset it is defined on.
+
+    target  (B,1) float: does FINGER motion over the next k frames exceed the
+            threshold, i.e. is the hand about to move
+    mask    (B,) bool:   is this sample one where the hand is currently STILL,
+            defined as articulation motion over the PREVIOUS k frames falling
+            below the same threshold, and a real past existing inside the window
+
+    SYMMETRY IS THE POINT. Both sides use median-fingertip ARTICULATION
+    displacement over exactly k frames, so one threshold means the same thing
+    forwards and backwards. Comparing a 20-frame causal history against an
+    8-frame future would make "still" a far stricter condition than "moving",
+    and the base rate would be an artifact of the window lengths.
+
+    ARTICULATION, not the rigid-removed space, because the threshold this is
+    compared against (--motion-threshold) is itself computed on articulation
+    displacement. Using a different space would put the constant on the wrong
+    scale.
+
+    CONDITIONING ON STILL IS WHY THIS TASK IS INTERESTING. Over all samples,
+    "will it move" is answered by "it is already moving" -- motion is strongly
+    autocorrelated and a pose-only model would score near ceiling with no
+    headroom left to measure. Restricting to currently-still samples removes
+    that shortcut, so what is left is ANTICIPATION: seeing a motion that has
+    not started yet. That is the quantity a controller actually needs, and the
+    one touch has a plausible mechanism for -- contact forces precede visible
+    motion.
+    """
+    _, art_future = decompose_world_delta(world_delta)
+    _, art_past = decompose_world_delta(past_delta)
+    future_disp = fingertip_displacement(art_future)
+    past_disp = fingertip_displacement(art_past)
+
+    target = (future_disp >= threshold).float().unsqueeze(-1)
+    mask = past_valid.bool().to(past_disp.device) & (past_disp < threshold)
+    return target, mask
+
+
+def _onset_metrics(logits, target, mask):
+    """AUC over the currently-still subset, plus the base rate.
+
+    AUC because it is threshold-free: the positive class is a minority by
+    construction here, and any accuracy-style number would be dominated by the
+    majority. Base rate is reported alongside so the AUC can be read against
+    what a constant predictor would achieve (0.5 regardless of imbalance).
+    """
+    import numpy as np
+
+    out = {}
+    if mask is not None:
+        logits, target = logits[mask], target[mask]
+    n = logits.numel()
+    out["n_still"] = float(n)
+    if n == 0:
+        return out
+    p = logits.reshape(-1).double().numpy()
+    y = target.reshape(-1).double().numpy() > 0.5
+    out["base_rate"] = float(y.mean())
+    if 0 < y.sum() < len(y):
+        order = np.argsort(p)
+        ranks = np.empty(len(p), dtype=float)
+        ranks[order] = np.arange(1, len(p) + 1)
+        n_pos, n_neg = int(y.sum()), int((~y).sum())
+        out["auc"] = float((ranks[y].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg))
+    else:
+        out["auc"] = float("nan")
+    return out
+
+
 def _aperture_metrics(pred, target, moving_mask):
     """Metrics for the scalar grip-aperture target.
 
@@ -233,15 +303,33 @@ def train_one_epoch_regression(model, data, epoch, optimizer, scaler, scheduler,
         pose_t, world_delta, articulation_delta, rigid_delta, tactile_pressure = _extract_batch(
             batch, use_tactile, device, input_dtype,
         )
-        target = _select_target(
-            pose_t, world_delta, articulation_delta, rigid_delta, args.target_mode)
+        onset_mask = None
+        if args.target_mode == "motion_onset":
+            target, onset_mask = onset_target_and_mask(
+                batch["past_delta"].to(device), batch["past_valid"],
+                world_delta, args.motion_threshold,
+            )
+        else:
+            target = _select_target(
+                pose_t, world_delta, articulation_delta, rigid_delta, args.target_mode)
 
         data_time_m.update(time.time() - end)
         optimizer.zero_grad()
 
         with autocast():
             pred_delta = model(pose_t, tactile_pressure)
-            loss = F.mse_loss(pred_delta, target)
+            if args.target_mode == "motion_onset":
+                # Masked rather than filtered. Filtering the dataset to the
+                # still subset would renumber samples and break the shuffled
+                # derangement, which is defined over window indices -- every
+                # arm must see identical samples for the paired comparison to
+                # hold. A batch with no still samples contributes zero loss.
+                per_sample = F.binary_cross_entropy_with_logits(
+                    pred_delta, target, reduction="none").squeeze(-1)
+                denom = onset_mask.sum()
+                loss = ((per_sample * onset_mask).sum() / denom) if denom > 0                     else pred_delta.sum() * 0.0
+            else:
+                loss = F.mse_loss(pred_delta, target)
 
         backward(loss, scaler)
 
@@ -326,6 +414,7 @@ def evaluate_regression(model, data, epoch, args):
     dataloader = data["val"].dataloader
     all_pred, all_world, all_articulation, all_rigid = [], [], [], []
     all_aperture = []
+    all_onset_target, all_onset_mask = [], []
     with torch.inference_mode():
         for batch in dataloader:
             pose_t, world_delta, articulation_delta, rigid_delta, tactile_pressure = _extract_batch(
@@ -339,11 +428,34 @@ def evaluate_regression(model, data, epoch, args):
             all_rigid.append(rigid_delta.float().cpu())
             if args.target_mode == "grip_aperture":
                 all_aperture.append(grip_aperture_delta(pose_t, world_delta).float().cpu())
+            if args.target_mode == "motion_onset":
+                ot, om = onset_target_and_mask(
+                    batch["past_delta"].to(device), batch["past_valid"],
+                    world_delta, args.motion_threshold,
+                )
+                all_onset_target.append(ot.float().cpu())
+                all_onset_mask.append(om.cpu())
 
     all_pred_t = torch.cat(all_pred)
     all_world_t = torch.cat(all_world)
     all_articulation_t = torch.cat(all_articulation)
     all_rigid_t = torch.cat(all_rigid)
+
+    if args.target_mode == "motion_onset":
+        onset_t = torch.cat(all_onset_target)
+        onset_m = torch.cat(all_onset_mask)
+        metrics = {"onset_%s" % k: v
+                   for k, v in _onset_metrics(all_pred_t, onset_t, onset_m).items()}
+        logging.info(
+            "Eval Epoch: %s  target_mode=motion_onset  still n=%d  base_rate=%.4f  AUC=%.4f",
+            epoch, int(metrics.get("onset_n_still", 0)),
+            metrics.get("onset_base_rate", float("nan")),
+            metrics.get("onset_auc", float("nan")),
+        )
+        if eval_model.gate is not None:
+            logging.info("  residual-fusion gate: %f",
+                         eval_model.gate.detach().float().mean().item())
+        return metrics
 
     if args.target_mode == "grip_aperture":
         # Scalar target: the per-joint machinery below does not apply, and the

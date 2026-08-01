@@ -258,7 +258,7 @@ def main(argv=None):
         hidden_dim=meta["hidden_dim"],
         tactile_correction_input=meta["tactile_correction_input"],
         fusion=meta["fusion"],
-        output_dim=1 if meta["target_mode"] == "grip_aperture" else POSE_DIM,
+        output_dim=1 if meta["target_mode"] in ("grip_aperture", "motion_onset") else POSE_DIM,
     ).to(device)
 
     ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)

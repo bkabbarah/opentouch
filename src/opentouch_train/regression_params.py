@@ -132,7 +132,8 @@ def parse_regression_args(args):
     )
     parser.add_argument(
         "--target-mode", type=str, default="articulation_delta",
-        choices=["world_delta", "articulation_delta", "rigid_articulation", "grip_aperture"],
+        choices=["world_delta", "articulation_delta", "rigid_articulation",
+                 "grip_aperture", "motion_onset"],
         help="What the model is trained to predict. 'rigid_articulation' additionally "
              "removes whole-hand ROTATION and uses palm axes, which is the only one "
              "of the three that isolates finger motion: rotation is ~95% of "
@@ -151,7 +152,18 @@ def parse_regression_args(args):
              "zero, which is why copy-zero is so hard to beat. Aperture is also "
              "rotation INVARIANT, being a distance, so it needs none of the Kabsch "
              "correction the delta targets require. Sets output_dim=1 and is scored "
-             "by MSE, R^2 against predicting no change, and AUC on the sign.",
+             "by MSE, R^2 against predicting no change, and AUC on the sign. "
+             "'motion_onset' is a BINARY target: given a hand that is currently "
+             "STILL (articulation motion over the previous k frames below "
+             "--motion-threshold), will it be moving over the next k? Both sides "
+             "use the same statistic over the same duration so one threshold means "
+             "the same thing forwards and backwards. Conditioning on still removes "
+             "the autocorrelation shortcut -- over all samples 'will it move' is "
+             "answered by 'it already is', leaving no headroom -- so what remains "
+             "is anticipation, which is what a controller needs and what contact "
+             "forces plausibly precede. Trained with masked BCE and scored by AUC "
+             "over the still subset, with the base rate reported. k=8 only: at "
+             "k=16 requiring a real past leaves too few valid timesteps.",
     )
     parser.add_argument(
         "--pose-only", action="store_true", default=False,
@@ -283,6 +295,32 @@ def parse_regression_args(args):
                 f"horizon_k + min_history ({parsed.sequence_length} >= {parsed.horizon_k} + "
                 f"{parsed.min_history} = {parsed.horizon_k + parsed.min_history}). Increase "
                 "--sequence-length, reduce --horizon-k, or lower --min-history."
+            )
+
+    if parsed.target_mode == "motion_onset":
+        # The target needs a real past of k frames inside the window, so only
+        # t >= horizon_k can be used, on top of the min-history floor. Left as
+        # a warning rather than an error because the mask handles it correctly
+        # -- but an 80% silent sample loss is exactly the kind of thing that
+        # gets discovered after a sweep rather than before one.
+        first_t = max(parsed.horizon_k, (parsed.min_history - 1) if parsed.causal else 0)
+        last_t = parsed.sequence_length - parsed.horizon_k
+        usable = max(0, last_t - first_t)
+        total = max(1, last_t - ((parsed.min_history - 1) if parsed.causal else 0))
+        if usable == 0:
+            raise ValueError(
+                f"--target-mode motion_onset needs t >= horizon_k ({parsed.horizon_k}) for a "
+                f"real past, but the last usable t is sequence_length - horizon_k = {last_t}. "
+                "No sample has both. Increase --sequence-length or lower --horizon-k."
+            )
+        if usable / total < 0.5:
+            import warnings
+            warnings.warn(
+                f"--target-mode motion_onset at horizon_k={parsed.horizon_k} keeps only "
+                f"{usable}/{total} timesteps per window ({usable / total:.0%}): requiring a "
+                f"real k-frame past excludes every t < {parsed.horizon_k}. k=8 keeps all of "
+                "them at the default sequence_length=36.",
+                stacklevel=2,
             )
 
     if parsed.freeze_random_tactile_encoder and parsed.pose_only:
