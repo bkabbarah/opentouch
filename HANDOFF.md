@@ -649,6 +649,11 @@ inside that range, and all but identical to seeds 0 and 1.
 projection of the tactile signal achieves.** Only seed 42, already flagged as
 the outlier high, exceeds it.
 
+> **Scope this claim carefully — see §2.19f.** It holds for the marginal over
+> the *learned pose embedding*, which is what this probe measures. It does NOT
+> generalise: against uncompressed 504-d kinematics, and on magnitude, the
+> pretrained encoder is worth about 2x a random one.
+
 So the project's stated hypothesis — *matching temporal structure across
 modalities is what unlocks predictive tactile information; an encoder that
 represents motion should align better and predict* — **is not supported by
@@ -674,9 +679,60 @@ predictive of motion direction. Raw tactile signal is.
 what unlocks *prediction*. The alignment half stands on its own retrieval
 evidence; the prediction half does not follow from it.
 
-Not yet run: the same control against the 504-d raw-kinematics baseline
-(§2.10, the +0.039). Given the pattern here, assume it is at risk until
-measured.
+### 2.19f Where the learned representation DOES matter — §2.19e was too sweeping
+
+The random-encoder control has now been run against the raw-kinematics
+baseline and the magnitude probe. §2.19e's conclusion holds *for the
+comparison it tested* but must not be generalised: on three of five
+measurements the pretrained encoder is roughly twice a random one.
+
+| measurement | pretrained | random | representation matters? |
+|---|---|---|---|
+| touch-alone AUC, k=8 | 0.6605 | 0.6392 | **yes** |
+| marginal vs **raw kinematics**, curl | **+0.0386** | +0.0202 | **yes, ~2x** |
+| marginal vs raw kinematics, radial | +0.0373 | +0.0191 | **yes, ~2x** |
+| marginal vs raw kinematics, spread | +0.0203 | +0.0081 (CI incl. 0) | **yes** |
+| magnitude vs raw kinematics | +7.38% | +3.45% | **yes, ~2x** |
+| marginal vs **learned pose embedding** | +0.0171 | +0.0122 | **no** (inside seed range) |
+| forecasting gain | −14.96% | −10.62% (and random wins outright) | **no** |
+
+`results_rawpose_k8_RANDENC.json`, `results_magnitude_k8_RANDENC.json`.
+
+**The single place the representation demonstrably does nothing is the
+marginal over the *learned pose embedding*** — which is precisely what §2.2,
+§2.3, §2.12, Fig 3 and the poster's CONTROLS table report. Any statement of
+the form "the signal is in the touch input, not the representation" must be
+scoped to that comparison, or it contradicts the +0.039 and magnitude results.
+
+Honest verdict on the project hypothesis: **mixed, not refuted.** The
+forecasting evidence contradicts the prediction half outright, and the
+pose-embedding marginal shows nothing; but against uncompressed kinematics,
+and for magnitude, the learned encoder is worth about 2x a random projection.
+
+### 2.19g Magnitude under participant hold-out — STRONGER, open item closed
+
+`results_magnitude_k8_SCENE.json`. Scene-disjoint split **and**
+scene-disjoint encoder (`p2t_scene_gru`), n=11,060 from 342 clips.
+
+| comparison | clip-split | **participant-disjoint** |
+|---|---|---|
+| vs raw kinematics, all joints | +7.38% | **+8.46%** |
+| vs raw kinematics, fingertips | +6.79% | **+7.85%** |
+| vs shuffled twin | +7.67% | **+8.54%** |
+| vs pose embedding | +3.66% | +4.11% |
+
+All CIs exclude zero. **The magnitude result gets stronger under participant
+hold-out**, not weaker — the opposite of what happened to forecasting.
+
+This closes the gap flagged when §2.11 went on the poster: it was the only
+displayed number lacking participant-disjoint, held-out-test and multi-seed
+controls. It now has the first, which is the one that mattered. Quote the
+participant-disjoint figure; quoting +7.4% means quoting the less-controlled
+number.
+
+Caveat: split and encoder both change versus the clip-split run, so this is a
+stricter test rather than a clean isolation of the split effect. Single
+encoder seed.
 
 ### 2.20 Retrieval bootstrap CIs — open question #2 closed
 
