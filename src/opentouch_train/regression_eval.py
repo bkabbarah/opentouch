@@ -30,8 +30,14 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
-from opentouch.pose_regression import POSE_DIM, decompose_world_delta, PoseTransitionRegressor
-from opentouch.regression_metrics import compute_dual_target_metrics
+from opentouch.pose_regression import (
+    POSE_DIM,
+    PoseTransitionRegressor,
+    decompose_world_delta,
+    grip_aperture_delta,
+)
+from opentouch.regression_metrics import compute_dual_target_metrics, fingertip_displacement
+from opentouch_train.regression_train import _aperture_metrics, _onset_metrics, onset_target_and_mask
 from opentouch_train.data import VideoTactilePoseDataset
 from opentouch_train.regression_data import PoseTransitionDataset, regression_collate_fn
 
@@ -294,6 +300,7 @@ def main(argv=None):
     log.info(f"Split: {args.split}  samples: {len(dataset)}  batches: {len(dataloader)}")
 
     all_pred, all_world, all_articulation = [], [], []
+    all_scalar_target = []
     with torch.inference_mode():
         for batch in dataloader:
             pose_t = batch["pose_t"].to(device)
@@ -304,10 +311,51 @@ def main(argv=None):
             all_pred.append(pred_delta.float().cpu())
             all_world.append(world_delta.float().cpu())
             all_articulation.append(articulation_delta.float().cpu())
+            if meta["target_mode"] == "grip_aperture":
+                all_scalar_target.append(
+                    grip_aperture_delta(pose_t, world_delta).float().cpu())
+            elif meta["target_mode"] == "motion_onset":
+                t_, m_ = onset_target_and_mask(
+                    batch["past_delta"].to(device), batch["past_valid"],
+                    world_delta, motion_threshold,
+                )
+                all_scalar_target.append(torch.stack(
+                    [t_.reshape(-1).float().cpu(), m_.reshape(-1).float().cpu()], dim=-1))
 
     all_pred_t = torch.cat(all_pred)
     all_world_t = torch.cat(all_world)
     all_articulation_t = torch.cat(all_articulation)
+
+    # Scalar targets do not go through the per-joint dual-target machinery at
+    # all: the prediction is (B,1), not (B,21,3).
+    if meta["target_mode"] == "grip_aperture":
+        target = torch.cat(all_scalar_target)
+        moving = fingertip_displacement(all_articulation_t) >= motion_threshold
+        m = _aperture_metrics(all_pred_t, target, moving)
+        print("")
+        print(f"  Checkpoint : {args.checkpoint}")
+        print(f"  Split      : {args.split}   n={len(all_pred_t)}  moving={int(moving.sum())}")
+        print("  R2_vs_zero: %.6f  AUC_sign: %.6f"
+              % (m["moving_r2_vs_zero"], m["moving_auc_sign"]))
+        if args.output:
+            with open(args.output, "w") as fh:
+                json.dump({"split": args.split, "target_mode": "grip_aperture", **m}, fh, indent=2)
+        return m
+
+    if meta["target_mode"] == "motion_onset":
+        stacked = torch.cat(all_scalar_target)
+        target, mask = stacked[:, :1], stacked[:, 1] > 0.5
+        m = _onset_metrics(all_pred_t, target, mask)
+        print("")
+        print(f"  Checkpoint : {args.checkpoint}")
+        print(f"  Split      : {args.split}   still n={int(m.get('n_still', 0))}")
+        print("  base_rate: %.6f  AUC: %.6f" % (m.get("base_rate", float("nan")),
+                                                m.get("auc", float("nan"))))
+        if args.output:
+            with open(args.output, "w") as fh:
+                json.dump({"split": args.split, "target_mode": "motion_onset", **m}, fh, indent=2)
+        return m
+
     dual_metrics = compute_dual_target_metrics(
         all_pred_t, all_world_t, all_articulation_t, motion_threshold=motion_threshold,
     )
