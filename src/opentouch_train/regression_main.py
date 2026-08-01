@@ -257,6 +257,13 @@ def main(args):
                     use_tactile=True, tactile_emb_dim=args.tactile_emb_dim,
                     hidden_dim=args.hidden_dim,
                     tactile_correction_input=args.tactile_correction_input,
+                    # fusion and output_dim BOTH change the parameter count, so
+                    # the reference must match them or this assertion compares
+                    # a shuffled film model against a gate-shaped reference and
+                    # fails on an architecture difference rather than on the
+                    # capacity mismatch it exists to catch.
+                    fusion=args.fusion,
+                    output_dim=1 if args.target_mode == "grip_aperture" else POSE_DIM,
                 )
                 # Parity is over TRAINABLE parameters, so the reference has to
                 # be frozen the same way or a frozen run would fail an assert

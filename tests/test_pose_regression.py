@@ -1622,3 +1622,24 @@ def test_select_target_returns_a_scalar_for_grip_aperture():
     world = torch.randn(5, 21, 3) * 0.01
     out = _select_target(pose, world, world, world, "grip_aperture")
     assert out.shape == (5, 1)
+
+
+@pytest.mark.parametrize("fusion", ["gate", "film"])
+@pytest.mark.parametrize("output_dim", [63, 1])
+def test_shuffled_parity_reference_must_match_architecture(fusion, output_dim):
+    """regression_main asserts the shuffled control has EXACTLY the trainable
+    parameter count of a plain tactile+pose model, and builds a reference to
+    compare against. Both fusion and output_dim change that count, so the
+    reference must be built with the same ones -- otherwise the assertion
+    fires on an architecture difference instead of the capacity mismatch it
+    exists to catch, which is what happened when film was first introduced."""
+    def build():
+        m = PoseTransitionRegressor(
+            use_tactile=True, tactile_correction_input="tactile_only",
+            fusion=fusion, output_dim=output_dim,
+        )
+        for p in m.tactile_encoder.parameters():
+            p.requires_grad_(False)
+        return sum(p.numel() for p in m.parameters() if p.requires_grad)
+
+    assert build() == build()
