@@ -30,7 +30,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
-from opentouch.pose_regression import decompose_world_delta, PoseTransitionRegressor
+from opentouch.pose_regression import POSE_DIM, decompose_world_delta, PoseTransitionRegressor
 from opentouch.regression_metrics import compute_dual_target_metrics
 from opentouch_train.data import VideoTactilePoseDataset
 from opentouch_train.regression_data import PoseTransitionDataset, regression_collate_fn
@@ -258,6 +258,7 @@ def main(argv=None):
         hidden_dim=meta["hidden_dim"],
         tactile_correction_input=meta["tactile_correction_input"],
         fusion=meta["fusion"],
+        output_dim=1 if meta["target_mode"] == "grip_aperture" else POSE_DIM,
     ).to(device)
 
     ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)

@@ -1539,3 +1539,86 @@ def test_film_params_are_clipped_with_the_tactile_branch():
             f"pose gradient {n} was rescaled by film's huge gradient -- film.* "
             "is being grouped with the pose branch"
         )
+
+
+# ---------------------------------------------------------------------------
+# grip_aperture: the low-entropy, policy-relevant target
+#
+# The 63-d delta target is ~81% unpredictable (best linear model R^2=0.19), and
+# MSE on a high-entropy near-symmetric target recovers a conditional mean near
+# zero -- which is why copy-zero is so hard to beat. Aperture collapses the
+# same motion onto one number a policy acts on, and being a DISTANCE it is
+# rotation invariant, so the confound that motivated rigid_articulation cannot
+# reach it.
+# ---------------------------------------------------------------------------
+
+
+def test_aperture_is_invariant_to_whole_hand_rotation_and_translation():
+    """The property that makes this target need no Kabsch correction."""
+    from opentouch.pose_regression import grip_aperture
+
+    torch.manual_seed(0)
+    pose = torch.randn(6, 21, 3)
+    angle = 0.7
+    rot = torch.tensor([
+        [np.cos(angle), -np.sin(angle), 0.0],
+        [np.sin(angle), np.cos(angle), 0.0],
+        [0.0, 0.0, 1.0],
+    ], dtype=torch.float32)
+    moved = pose @ rot.T + torch.tensor([5.0, -2.0, 3.0])
+    assert torch.allclose(grip_aperture(pose), grip_aperture(moved), atol=1e-5)
+
+
+def test_aperture_grows_when_fingers_extend():
+    """Sign convention: positive delta means the hand is OPENING."""
+    from opentouch.pose_regression import grip_aperture_delta
+
+    pose = torch.zeros(1, 21, 3)
+    for tip in FINGERTIP_COLUMNS:
+        pose[0, tip] = torch.tensor([1.0, 0.0, 0.0])
+    outward = torch.zeros(1, 21, 3)
+    for tip in FINGERTIP_COLUMNS:
+        outward[0, tip] = torch.tensor([0.5, 0.0, 0.0])
+    assert grip_aperture_delta(pose, outward).item() > 0
+    assert grip_aperture_delta(pose, -outward).item() < 0
+
+
+@pytest.mark.parametrize("fusion", ["gate", "film"])
+def test_scalar_output_still_starts_identical_to_pose_only(fusion):
+    torch.manual_seed(0)
+    model = PoseTransitionRegressor(
+        use_tactile=True, tactile_correction_input="tactile_only",
+        fusion=fusion, output_dim=1,
+    ).eval()
+    pose_only = PoseTransitionRegressor(use_tactile=False, output_dim=1).eval()
+    pose_only.head.load_state_dict(model.head.state_dict())
+
+    pose = torch.randn(4, 21, 3)
+    tactile = torch.rand(4, 20, 1, 16, 16)
+    with torch.no_grad():
+        out = model(pose, tactile)
+        assert out.shape == (4, 1)
+        assert torch.allclose(out, pose_only(pose), atol=1e-6)
+
+
+def test_aperture_metrics_bracket_perfect_and_useless_predictors():
+    from opentouch_train.regression_train import _aperture_metrics
+
+    torch.manual_seed(0)
+    target = torch.randn(400, 1)
+    perfect = _aperture_metrics(target, target, None)
+    assert perfect["all_r2_vs_zero"] == pytest.approx(1.0)
+    assert perfect["all_auc_sign"] == pytest.approx(1.0)
+
+    useless = _aperture_metrics(torch.zeros_like(target), target, None)
+    assert useless["all_r2_vs_zero"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_select_target_returns_a_scalar_for_grip_aperture():
+    from opentouch_train.regression_train import _select_target
+
+    torch.manual_seed(0)
+    pose = torch.randn(5, 21, 3)
+    world = torch.randn(5, 21, 3) * 0.01
+    out = _select_target(pose, world, world, world, "grip_aperture")
+    assert out.shape == (5, 1)

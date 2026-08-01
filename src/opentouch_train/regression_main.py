@@ -30,6 +30,7 @@ except ImportError:
 
 from opentouch.factory import natural_key
 from opentouch.pose_regression import (
+    POSE_DIM,
     PoseTransitionRegressor,
     load_pretrained_tactile_encoder,
 )
@@ -206,6 +207,7 @@ def main(args):
         hidden_dim=args.hidden_dim,
         tactile_correction_input=args.tactile_correction_input,
         fusion=args.fusion,
+        output_dim=1 if args.target_mode == "grip_aperture" else POSE_DIM,
     ).to(device)
 
     if args.tactile_init_checkpoint:

@@ -22,7 +22,7 @@ from opentouch.articulation_frames import (
     hand_frame_basis,
     to_hand_frame,
 )
-from opentouch.pose_regression import decompose_world_delta
+from opentouch.pose_regression import decompose_world_delta, grip_aperture_delta
 from opentouch.regression_metrics import (
     _metrics_given_mask,
     compute_dual_target_metrics,
@@ -89,6 +89,7 @@ def _extract_batch(batch, use_tactile, device, input_dtype):
 
 
 def _select_target(
+    pose_t: torch.Tensor,
     world_delta: torch.Tensor,
     articulation_delta: torch.Tensor,
     rigid_delta: torch.Tensor,
@@ -107,10 +108,58 @@ def _select_target(
         return world_delta
     if target_mode == "rigid_articulation":
         return rigid_delta
+    if target_mode == "grip_aperture":
+        # (B,1). No frame correction: aperture is a distance and therefore
+        # rotation invariant, so the confound that motivated rigid_articulation
+        # cannot reach this target.
+        return grip_aperture_delta(pose_t, world_delta)
     raise ValueError(
         f"Unknown target_mode {target_mode!r}, expected 'world_delta', "
-        "'articulation_delta' or 'rigid_articulation'"
+        "'articulation_delta', 'rigid_articulation' or 'grip_aperture'"
     )
+
+
+def _aperture_metrics(pred, target, moving_mask):
+    """Metrics for the scalar grip-aperture target.
+
+    Three numbers, because each answers a different question:
+      mse          -- the loss itself
+      r2_vs_zero   -- share of variance explained ABOVE predicting no change.
+                      Reported because on the 63-d target this is only 0.19,
+                      and a small MSE hides how little of the signal is
+                      actually predictable. Copy-zero is the honest floor.
+      auc_sign     -- how often the model gets the DIRECTION right (opening vs
+                      closing), the part a policy can act on. Directly
+                      comparable to the direction probe's AUC.
+    """
+    import numpy as np
+
+    out = {}
+    for label, mask in (("all_", None), ("moving_", moving_mask)):
+        p = pred if mask is None else pred[mask]
+        t = target if mask is None else target[mask]
+        if p.numel() == 0:
+            continue
+        p, t = p.reshape(-1).double(), t.reshape(-1).double()
+        mse = torch.mean((p - t) ** 2).item()
+        copy_zero = torch.mean(t ** 2).item()
+        out[label + "mse"] = mse
+        out[label + "copy_baseline_mse"] = copy_zero
+        out[label + "r2_vs_zero"] = 1.0 - mse / copy_zero if copy_zero > 0 else float("nan")
+
+        # AUC of predicted change against the true sign, over samples whose
+        # true change is non-zero. Rank-based, so no threshold is needed.
+        sign = (t > 0).numpy()
+        if 0 < sign.sum() < len(sign):
+            order = np.argsort(p.numpy())
+            ranks = np.empty(len(p), dtype=float)
+            ranks[order] = np.arange(1, len(p) + 1)
+            n_pos, n_neg = int(sign.sum()), int((~sign).sum())
+            out[label + "auc_sign"] = float(
+                (ranks[sign].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg))
+        else:
+            out[label + "auc_sign"] = float("nan")
+    return out
 
 
 def _clip_gradients(model, max_norm: float, scope: str) -> None:
@@ -184,7 +233,8 @@ def train_one_epoch_regression(model, data, epoch, optimizer, scaler, scheduler,
         pose_t, world_delta, articulation_delta, rigid_delta, tactile_pressure = _extract_batch(
             batch, use_tactile, device, input_dtype,
         )
-        target = _select_target(world_delta, articulation_delta, rigid_delta, args.target_mode)
+        target = _select_target(
+            pose_t, world_delta, articulation_delta, rigid_delta, args.target_mode)
 
         data_time_m.update(time.time() - end)
         optimizer.zero_grad()
@@ -275,6 +325,7 @@ def evaluate_regression(model, data, epoch, args):
 
     dataloader = data["val"].dataloader
     all_pred, all_world, all_articulation, all_rigid = [], [], [], []
+    all_aperture = []
     with torch.inference_mode():
         for batch in dataloader:
             pose_t, world_delta, articulation_delta, rigid_delta, tactile_pressure = _extract_batch(
@@ -286,11 +337,41 @@ def evaluate_regression(model, data, epoch, args):
             all_world.append(world_delta.float().cpu())
             all_articulation.append(articulation_delta.float().cpu())
             all_rigid.append(rigid_delta.float().cpu())
+            if args.target_mode == "grip_aperture":
+                all_aperture.append(grip_aperture_delta(pose_t, world_delta).float().cpu())
 
     all_pred_t = torch.cat(all_pred)
     all_world_t = torch.cat(all_world)
     all_articulation_t = torch.cat(all_articulation)
     all_rigid_t = torch.cat(all_rigid)
+
+    if args.target_mode == "grip_aperture":
+        # Scalar target: the per-joint machinery below does not apply, and the
+        # moving mask still comes from ARTICULATION displacement so the eval
+        # population matches every other run exactly.
+        aperture_target = torch.cat(all_aperture)
+        moving_mask = None
+        if args.motion_threshold is not None:
+            moving_mask = fingertip_displacement(all_articulation_t) >= args.motion_threshold
+        metrics = {"aperture_%s" % k: v
+                   for k, v in _aperture_metrics(all_pred_t, aperture_target, moving_mask).items()}
+        if moving_mask is not None:
+            metrics["motion_threshold"] = float(args.motion_threshold)
+            metrics["num_moving_samples"] = float(int(moving_mask.sum()))
+            metrics["num_samples"] = float(len(all_pred_t))
+        logging.info(
+            "Eval Epoch: %s  target_mode=grip_aperture  "
+            "moving mse: %.8f  copy_baseline: %.8f  R2_vs_zero: %.4f  AUC_sign: %.4f",
+            epoch,
+            metrics.get("aperture_moving_mse", float("nan")),
+            metrics.get("aperture_moving_copy_baseline_mse", float("nan")),
+            metrics.get("aperture_moving_r2_vs_zero", float("nan")),
+            metrics.get("aperture_moving_auc_sign", float("nan")),
+        )
+        if eval_model.gate is not None:
+            logging.info("  residual-fusion gate: %f",
+                         eval_model.gate.detach().float().mean().item())
+        return metrics
 
     dual_metrics = compute_dual_target_metrics(
         all_pred_t, all_world_t, all_articulation_t, motion_threshold=args.motion_threshold,

@@ -132,7 +132,7 @@ def parse_regression_args(args):
     )
     parser.add_argument(
         "--target-mode", type=str, default="articulation_delta",
-        choices=["world_delta", "articulation_delta", "rigid_articulation"],
+        choices=["world_delta", "articulation_delta", "rigid_articulation", "grip_aperture"],
         help="What the model is trained to predict. 'rigid_articulation' additionally "
              "removes whole-hand ROTATION and uses palm axes, which is the only one "
              "of the three that isolates finger motion: rotation is ~95% of "
@@ -142,7 +142,16 @@ def parse_regression_args(args):
              "the raw world_delta is whole-hand/arm translation tactile has no "
              "reason to predict (see opentouch.pose_regression module docstring). "
              "'world_delta' trains on the raw pose[t+k]-pose[t]. Eval always "
-             "reports metrics for BOTH modes regardless of this flag.",
+             "reports metrics for BOTH modes regardless of this flag. "
+             "'grip_aperture' is different in kind: a SCALAR target -- the change "
+             "in mean fingertip-to-wrist distance, i.e. how much the hand opens or "
+             "closes over the horizon. It exists because the 63-d delta target is "
+             "~81% unpredictable (best linear model R^2=0.19), and MSE on a "
+             "high-entropy near-symmetric target recovers a conditional mean near "
+             "zero, which is why copy-zero is so hard to beat. Aperture is also "
+             "rotation INVARIANT, being a distance, so it needs none of the Kabsch "
+             "correction the delta targets require. Sets output_dim=1 and is scored "
+             "by MSE, R^2 against predicting no change, and AUC on the sign.",
     )
     parser.add_argument(
         "--pose-only", action="store_true", default=False,

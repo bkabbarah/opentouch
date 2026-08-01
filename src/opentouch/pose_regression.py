@@ -115,6 +115,48 @@ FINGERTIP_COLUMNS = tuple(1 + 4 * slot + 3 for slot in range(5))  # (4, 8, 12, 1
 assert FINGERTIP_COLUMNS == (4, 8, 12, 16, 20)
 
 
+def grip_aperture(pose: torch.Tensor) -> torch.Tensor:
+    """(B,21,3) -> (B,) mean fingertip-to-wrist distance: how open the hand is.
+
+    WHY THIS TARGET. The delta-vector target is 63 numbers of which ~81% is
+    unpredictable (best linear model reaches R^2=0.19), and MSE on a
+    high-entropy near-symmetric target recovers a conditional mean close to
+    zero -- which is why copy-zero is so hard to beat. Aperture collapses the
+    same motion onto ONE number that a manipulation policy actually acts on:
+    is the hand opening or closing, and how fast.
+
+    ROTATION INVARIANCE, FOR FREE. This is a distance, and distances are
+    unchanged by rotating the whole hand. So unlike articulation_delta -- where
+    whole-hand rotation is ~95% of the target's energy and had to be removed by
+    Kabsch alignment before tactile's contribution was visible at all -- this
+    target is immune to that confound by construction. No frame correction is
+    needed or meaningful here.
+
+    Averaged over five fingertips rather than taken between two of them (the
+    thumb-index "pinch" definition): five points average down per-joint
+    retargeting noise, and this is the same statistic
+    scripts/validate_handframe.py uses, where it correlates r=+0.991 with the
+    radial palm axis.
+    """
+    if pose.dim() != 3 or pose.shape[1:] != (NUM_KEYPOINTS, COORD_DIM):
+        raise ValueError(
+            f"pose must be shaped (B,{NUM_KEYPOINTS},{COORD_DIM}), got {tuple(pose.shape)}"
+        )
+    tips = pose[:, list(FINGERTIP_COLUMNS)]                 # (B,5,3)
+    wrist = pose[:, WRIST_INDEX:WRIST_INDEX + 1]            # (B,1,3)
+    return (tips - wrist).norm(dim=-1).mean(dim=-1)         # (B,)
+
+
+def grip_aperture_delta(pose_t: torch.Tensor, world_delta: torch.Tensor) -> torch.Tensor:
+    """(B,21,3),(B,21,3) -> (B,1) change in aperture over the horizon.
+
+    Positive = hand opening. Takes world_delta rather than a corrected target
+    precisely because no correction is required: aperture is rotation
+    invariant, so pose_t + world_delta is the honest future hand.
+    """
+    return (grip_aperture(pose_t + world_delta) - grip_aperture(pose_t)).unsqueeze(-1)
+
+
 def decompose_world_delta(world_delta: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """(B,21,3) world-space delta -> (wrist_delta (B,3), articulation_delta (B,21,3)).
 
@@ -163,8 +205,15 @@ class PoseTransitionRegressor(nn.Module):
         hidden_dim: int = 128,
         tactile_correction_input: str = "pose_tactile",
         fusion: str = "gate",
+        output_dim: int = POSE_DIM,
     ) -> None:
         super().__init__()
+        # output_dim=POSE_DIM (63) predicts the full per-joint delta and
+        # reshapes to (B,21,3), which is every historical run. output_dim=1
+        # predicts a scalar such as the grip-aperture change, where the point
+        # is to stop spreading the model's capacity across 63 outputs of which
+        # most are unpredictable.
+        self.output_dim = output_dim
         self.use_tactile = use_tactile
         self.tactile_emb_dim = tactile_emb_dim
         self.hidden_dim = hidden_dim
@@ -184,7 +233,7 @@ class PoseTransitionRegressor(nn.Module):
             nn.Linear(hidden_dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(0.1),
-            nn.Linear(hidden_dim, POSE_DIM),
+            nn.Linear(hidden_dim, output_dim),
         )
 
         if use_tactile:
@@ -222,7 +271,7 @@ class PoseTransitionRegressor(nn.Module):
                 nn.Linear(hidden_dim, hidden_dim),
                 nn.GELU(),
                 nn.Dropout(0.1),
-                nn.Linear(hidden_dim, POSE_DIM),
+                nn.Linear(hidden_dim, output_dim),
             )
             # Scalar gate, zero-initialized: at init this model computes
             # exactly self.head(pose_flat), i.e. the pose-only baseline.
@@ -276,6 +325,13 @@ class PoseTransitionRegressor(nn.Module):
             self.fusion = fusion
             self.tactile_correction_input = tactile_correction_input
 
+    def _shape_out(self, flat: torch.Tensor, b: int) -> torch.Tensor:
+        """(B,output_dim) -> (B,21,3) for the full-pose target, left as
+        (B,output_dim) otherwise. Keeps every existing caller unchanged."""
+        if self.output_dim == POSE_DIM:
+            return flat.view(b, NUM_KEYPOINTS, COORD_DIM)
+        return flat
+
     def forward(
         self,
         pose_t: torch.Tensor,
@@ -305,9 +361,9 @@ class PoseTransitionRegressor(nn.Module):
                 mod_input = tactile_embed
             dgamma, beta = self.film(mod_input).chunk(2, dim=-1)
             hidden = (1.0 + dgamma) * hidden + beta
-            return self.head[6:](hidden).view(b, NUM_KEYPOINTS, COORD_DIM)
+            return self._shape_out(self.head[6:](hidden), b)
 
-        delta_pose = self.head(pose_flat).view(b, NUM_KEYPOINTS, COORD_DIM)
+        delta_pose = self._shape_out(self.head(pose_flat), b)
 
         if self.use_tactile:
             assert tactile_pressure is not None, (
@@ -318,7 +374,7 @@ class PoseTransitionRegressor(nn.Module):
                 correction_input = torch.cat([pose_flat, tactile_embed], dim=-1)
             else:
                 correction_input = tactile_embed
-            delta_correction = self.tactile_head(correction_input).view(b, NUM_KEYPOINTS, COORD_DIM)
+            delta_correction = self._shape_out(self.tactile_head(correction_input), b)
             return delta_pose + self.gate * delta_correction
         else:
             assert tactile_pressure is None, (
