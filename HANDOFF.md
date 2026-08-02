@@ -823,9 +823,52 @@ and those metrics are also val — selection on the eval set, the same error as
 quoting seed 42. `scripts/aperture_earlystop.sh` selects the epoch on val and
 reports on TEST; use its numbers.
 
-**Still required before believing the aperture result:** the split-seed check.
-§2.19 looked this clean too until redrawing the participant partition moved it
-from −15% to +5%.
+### 2.23 Aperture under redrawn partitions — IT REPLICATES
+
+`results_aperture_earlystop.json`, `results_aperture_splitseed_ss{1,2,3}.json`.
+Four participant partitions, each with its OWN scene-disjoint encoder
+(`p2t_scene_gru`, `_ss1`, `_ss2`, `_ss3`). Stopping epoch chosen on val by R²,
+number reported on TEST. 2 model seeds per cell.
+
+| partition | touch AUC | pose-only AUC | shuffled AUC |
+|---|---|---|---|
+| 42 (original) | 0.665 | 0.601 | 0.517 |
+| 1 | 0.610 | 0.608 | 0.536 |
+| 2 | 0.657 | 0.581 | 0.558 |
+| 3 | 0.671 | 0.599 | 0.551 |
+
+| contrast | mean | range | positive |
+|---|---|---|---|
+| touch − **shuffled** (capacity-matched), AUC | **+0.110** | [+0.074, +0.148] | **4/4** |
+| touch − shuffled, R² | +0.132 | [+0.067, +0.190] | **4/4** |
+| touch − pose-only, AUC | +0.054 | [+0.002, +0.076] | 4/4 |
+| touch − pose-only, R² | +0.058 | [−0.010, +0.103] | 3/4 |
+
+**This is the first result in the forecasting line that survives the test that
+killed §2.19.** For contrast, the delta target's capacity-matched contrast
+across redrawn partitions went −15.0%, −5.8%, −10.0%, **+5.0%** — a sign flip
+— and its pose-only contrast turned negative in all six redrawn cells. The
+aperture gap never flips, never approaches zero, and never drops below
++0.074 AUC.
+
+Partition 1 is the weak one: touch beats pose-only by only +0.002 AUC and
+−0.010 R². Pose-only had its best test performance of any partition there
+(R² 0.119) while touch had its worst (0.109) — those three held-out scenes
+suit the pose baseline. The capacity-matched contrast still holds cleanly
+(+0.074 AUC).
+
+**The learning-dynamics finding is fully robust.** Touch selected epoch 2-4 in
+every run across all four partitions; pose-only selected 36-60 in every run.
+That is a property of the data, not of one split.
+
+**What can be said:** on predicting whether the hand is about to open or close
+— a rotation-invariant, policy-relevant scalar — frozen tactile features beat
+a capacity-matched control by +0.11 AUC on average across four participant
+partitions, positive in all four, and beat a pose-only model by +0.054 AUC,
+out of sample on participants held out of every training stage.
+
+**Limits:** 3 held-out scenes per partition, 2 model seeds per cell, one
+partition where the pose-only margin is a wash, k=8 only.
 
 ### 2.20 Retrieval bootstrap CIs — open question #2 closed
 
