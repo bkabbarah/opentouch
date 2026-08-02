@@ -9,18 +9,26 @@ out on the cluster at `~/scratch/bashar/opentouch-gru`).
 
 ---
 
-> **Updated 2026-07-28 (evening).** Open questions #1-#3 are closed. The
-> headline: with the tactile encoder frozen from a retrieval checkpoint,
-> touch beats its capacity-matched shuffled twin by **15.0% at both horizons
-> even when neither training stage ever saw the evaluation participants**
-> (§2.19). That is the practical claim that was unavailable for the whole
-> project, and it now survives participant hold-out.
+> **Updated 2026-08-02.** The forecasting story changed twice since the
+> 07-28 version. Read §2.23 first, then §2.22, then §2.19f.
 >
-> Read §2.19 and §2.19b first, then §2.17, §2.10 and §2.11. **Quote the
-> shuffled comparison, not the pose-only one.** Under participant hold-out the
-> shuffled margin holds at ~15% with clip-clustered intervals far from zero at
-> both horizons, while the margin over pose-only compresses to −6.9% at k=8
-> and −2.7% at k=16 — and **the k=16 one includes zero, so it is withdrawn.**
+> **The live claim is §2.23, grip aperture.** Predicting whether the hand is
+> about to open or close — a rotation-invariant scalar a policy can act on —
+> frozen tactile features beat a capacity-matched control by **+0.11 AUC,
+> positive on all four participant partitions**, and beat pose-only by +0.054
+> AUC, out of sample with the stopping epoch chosen on val and the number
+> reported on test. **It is the only forecasting result that survives
+> redrawing the participant partition.**
+>
+> **§2.19's 15% is NOT that claim and should not be quoted as one.** Its
+> capacity-matched contrast across redrawn partitions went −15.0%, −5.8%,
+> −10.0%, **+5.0%** — a sign flip (§2.19c) — and a randomly initialised
+> encoder recovers ~71% of it, beating the pretrained one outright (§2.19d).
+> Whatever it measures is mostly correct temporal pairing, not the learned
+> representation.
+>
+> The probe results (§2.2-§2.12) and retrieval (§2.1, §2.18, §2.20) are
+> unaffected by any of this and remain the solid core.
 
 ## 1. Where things stand in one paragraph
 
