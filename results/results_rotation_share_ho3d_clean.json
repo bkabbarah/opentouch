@@ -1,0 +1,191 @@
+{
+  "name": "HO3D (9 takes)",
+  "fps": 30.0,
+  "n_sequences": 44,
+  "horizons": {
+    "2": {
+      "n_pairs": 15395,
+      "median_rigid_share": 0.742958664894104,
+      "mean_rigid_share": 0.683026909828186,
+      "frac_above_80pct": 0.4319584280610588,
+      "frac_above_90pct": 0.29074374797012015,
+      "ms_ahead": 66.66666666666667,
+      "by_group": {
+        "ABF10": {
+          "n": 1109,
+          "median_rigid_share": 0.7773916721343994
+        },
+        "BB10": {
+          "n": 1529,
+          "median_rigid_share": 0.7864291071891785
+        },
+        "GPMF10": {
+          "n": 1020,
+          "median_rigid_share": 0.6369957327842712
+        },
+        "GSF10": {
+          "n": 1543,
+          "median_rigid_share": 0.6817551851272583
+        },
+        "MDF10": {
+          "n": 2320,
+          "median_rigid_share": 0.5690057277679443
+        },
+        "SB10": {
+          "n": 1666,
+          "median_rigid_share": 0.9452250003814697
+        },
+        "SMu40": {
+          "n": 1998,
+          "median_rigid_share": 0.9999552965164185
+        },
+        "ShSu10": {
+          "n": 1711,
+          "median_rigid_share": 0.48953360319137573
+        },
+        "SiBF10": {
+          "n": 2499,
+          "median_rigid_share": 0.6923671960830688
+        }
+      }
+    },
+    "4": {
+      "n_pairs": 15307,
+      "median_rigid_share": 0.7824547290802002,
+      "mean_rigid_share": 0.7092506289482117,
+      "frac_above_80pct": 0.47886587835630756,
+      "frac_above_90pct": 0.3292611223623179,
+      "ms_ahead": 133.33333333333334,
+      "by_group": {
+        "ABF10": {
+          "n": 1091,
+          "median_rigid_share": 0.8315143585205078
+        },
+        "BB10": {
+          "n": 1523,
+          "median_rigid_share": 0.8067653775215149
+        },
+        "GPMF10": {
+          "n": 1010,
+          "median_rigid_share": 0.6812185049057007
+        },
+        "GSF10": {
+          "n": 1539,
+          "median_rigid_share": 0.718228816986084
+        },
+        "MDF10": {
+          "n": 2296,
+          "median_rigid_share": 0.6475464105606079
+        },
+        "SB10": {
+          "n": 1662,
+          "median_rigid_share": 0.9646629691123962
+        },
+        "SMu40": {
+          "n": 1996,
+          "median_rigid_share": 0.999951958656311
+        },
+        "ShSu10": {
+          "n": 1699,
+          "median_rigid_share": 0.4900723099708557
+        },
+        "SiBF10": {
+          "n": 2491,
+          "median_rigid_share": 0.7103028893470764
+        }
+      }
+    },
+    "8": {
+      "n_pairs": 15131,
+      "median_rigid_share": 0.8214751482009888,
+      "mean_rigid_share": 0.7341559529304504,
+      "frac_above_80pct": 0.5276584495406781,
+      "frac_above_90pct": 0.3811380609345053,
+      "ms_ahead": 266.6666666666667,
+      "by_group": {
+        "ABF10": {
+          "n": 1055,
+          "median_rigid_share": 0.8775448203086853
+        },
+        "BB10": {
+          "n": 1511,
+          "median_rigid_share": 0.8255214691162109
+        },
+        "GPMF10": {
+          "n": 990,
+          "median_rigid_share": 0.7059311866760254
+        },
+        "GSF10": {
+          "n": 1531,
+          "median_rigid_share": 0.7665532231330872
+        },
+        "MDF10": {
+          "n": 2248,
+          "median_rigid_share": 0.7032037973403931
+        },
+        "SB10": {
+          "n": 1654,
+          "median_rigid_share": 0.9812188148498535
+        },
+        "SMu40": {
+          "n": 1992,
+          "median_rigid_share": 0.99994957447052
+        },
+        "ShSu10": {
+          "n": 1675,
+          "median_rigid_share": 0.4968501925468445
+        },
+        "SiBF10": {
+          "n": 2475,
+          "median_rigid_share": 0.7449946999549866
+        }
+      }
+    },
+    "16": {
+      "n_pairs": 14807,
+      "median_rigid_share": 0.8569640517234802,
+      "mean_rigid_share": 0.7532193064689636,
+      "frac_above_80pct": 0.567907070979942,
+      "frac_above_90pct": 0.42972918214358075,
+      "ms_ahead": 533.3333333333334,
+      "by_group": {
+        "ABF10": {
+          "n": 999,
+          "median_rigid_share": 0.9082015752792358
+        },
+        "BB10": {
+          "n": 1487,
+          "median_rigid_share": 0.842860758304596
+        },
+        "GPMF10": {
+          "n": 950,
+          "median_rigid_share": 0.7760328054428101
+        },
+        "GSF10": {
+          "n": 1515,
+          "median_rigid_share": 0.7798773050308228
+        },
+        "MDF10": {
+          "n": 2164,
+          "median_rigid_share": 0.7541823387145996
+        },
+        "SB10": {
+          "n": 1638,
+          "median_rigid_share": 0.9867961406707764
+        },
+        "SMu40": {
+          "n": 1984,
+          "median_rigid_share": 0.9999508261680603
+        },
+        "ShSu10": {
+          "n": 1627,
+          "median_rigid_share": 0.5093961954116821
+        },
+        "SiBF10": {
+          "n": 2443,
+          "median_rigid_share": 0.7749063372612
+        }
+      }
+    }
+  }
+}

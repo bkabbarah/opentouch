@@ -980,6 +980,76 @@ it is the conservative one — and state that restricting to above-median motion
 raises it to 98.0% (OpenTouch) and 94.0% (DexYCB). Pre-empting this beats
 having it raised in review, and the answer runs in your favour.
 
+### 2.30 HO-3D — third dataset, and it is the weakest of the three
+
+`results/results_rotation_share_ho3d_clean.json`,
+`results/results_motion_sensitivity_ho3d.json`. Read §2.28 first.
+
+**HO-3D is far less data than its "55 training sequences" suggests.** After
+two guards, both added because the first HO-3D run looked entirely reasonable
+and was not:
+
+| stage | sequences | takes |
+|---|---|---|
+| as loaded | 235 | 55 "recordings" |
+| after dropping no-articulation annotations | — | 40 |
+| after collapsing duplicate camera views | **44** | **9** |
+
+1. **Five-way camera duplication.** HO-3D encodes the camera as the *last
+   character of the sequence name* — `ABF10`–`ABF14` are five views of one
+   take. Caught because the by-group table showed five entries at a time with
+   identical n and identical median, which is what a rigid-invariant metric
+   does to duplicate views. A name-based rule would not have been safe either:
+   `MC1`–`MC6` share a prefix but are six genuinely different takes. Dedup is
+   done on content.
+2. **Six families have no articulation at all.** MC, ND, SM, SMu1, SS, SiS —
+   15 of 55 recordings — have **exactly zero** variation in intra-hand joint
+   distances across their entire length. The annotation is one frozen hand
+   template re-posed rigidly. They score exactly 1.0 because 100% of their
+   wrist-relative motion really is rigid rotation — a fact about the
+   annotation pipeline, not about hands.
+
+Including them inflated the result by ~5 points at every horizon:
+
+| k | contaminated | **cleaned** |
+|---|---|---|
+| 2 | 80.1% | **74.3%** |
+| 4 | 83.6% | **78.2%** |
+| 8 | 86.8% | **82.1%** |
+| 16 | 89.8% | **85.7%** |
+
+**All three datasets, k=8, cleaned:**
+
+| dataset | median rigid share | independent units |
+|---|---|---|
+| OpenTouch | **96.1%** | 26 scenes |
+| DexYCB | **89.6%** | 300 takes, 3 subjects |
+| HO-3D | **82.1%** | 9 takes |
+
+**The ordering is exactly what §2.28's transport-vs-articulation reading
+predicts.** OpenTouch is egocentric free-living, the hand carried around by a
+walking body — highest. DexYCB is seated tabletop grasping — middle. HO-3D is
+hand-object manipulation with a largely stationary arm and deliberate in-hand
+articulation — lowest. The prediction was made before HO-3D was measured.
+
+**Motion sensitivity holds here too** (§2.29): HO-3D k=8 goes 82.1% over all
+samples → 91.5% above median motion → 93.8% in the top decile. Still frames
+still drag the number down, so the published figure remains the conservative
+one on all three datasets.
+
+**Between-take spread is wide** — at k=2 the nine takes run 49.0% to 100.0%,
+median across takes 69.2%. With only nine independent takes the pooled figure
+is sensitive to take length, so quote the pooled number *and* the range.
+`SMu4` sits at 1.0000: its shape does change (no frame pair is shape-frozen),
+but articulation is negligible beside its rotation. It is real data at the
+boundary, not an artifact, and it is one take of nine.
+
+**How to state the claim across all three.** *The standard wrist-relative
+target is majority whole-hand rotation on every dataset measured — 82%, 90%
+and 96% of its energy at 267 ms — with the magnitude tracking how much the
+hand is transported versus articulated in place.* That is weaker than "~95%"
+and much harder to dismiss.
+
 ### 2.28 CROSS-DATASET: the rotation claim replicates on DexYCB
 
 `results/results_rotation_share_dexycb3.json` (per subject),
