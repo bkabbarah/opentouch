@@ -1,0 +1,463 @@
+{
+  "name": "OpenTouch (train+val+test)",
+  "fps": 30.0,
+  "n_sequences": 7620,
+  "horizons": {
+    "2": {
+      "n_pairs": 200000,
+      "median_rigid_share": 0.9572156667709351,
+      "mean_rigid_share": 0.8359407186508179,
+      "frac_above_80pct": 0.74375,
+      "frac_above_90pct": 0.63504,
+      "ms_ahead": 66.66666666666667,
+      "by_group": {
+        "eat_mcdonalds": {
+          "n": 3260,
+          "median_rigid_share": 0.9759832620620728
+        },
+        "eat_ygf_p1": {
+          "n": 1580,
+          "median_rigid_share": 0.9444162845611572
+        },
+        "eat_ygf_p2": {
+          "n": 4157,
+          "median_rigid_share": 0.9934881925582886
+        },
+        "fablab_ml_p1": {
+          "n": 9058,
+          "median_rigid_share": 0.9046040177345276
+        },
+        "fablab_ml_p2": {
+          "n": 8939,
+          "median_rigid_share": 0.9337019920349121
+        },
+        "fablab_ml_p3": {
+          "n": 4504,
+          "median_rigid_share": 0.9440512657165527
+        },
+        "grocery_plant": {
+          "n": 5543,
+          "median_rigid_share": 0.9736816883087158
+        },
+        "grocery_target_p1": {
+          "n": 6069,
+          "median_rigid_share": 0.9771326184272766
+        },
+        "grocery_target_p2": {
+          "n": 8753,
+          "median_rigid_share": 0.9729153513908386
+        },
+        "grocery_target_p3": {
+          "n": 16472,
+          "median_rigid_share": 0.9666253328323364
+        },
+        "grocery_tj": {
+          "n": 8074,
+          "median_rigid_share": 0.9398319721221924
+        },
+        "hardware_homedepot_p1": {
+          "n": 3061,
+          "median_rigid_share": 0.9242938756942749
+        },
+        "hardware_homedepot_p2": {
+          "n": 8056,
+          "median_rigid_share": 0.9643358588218689
+        },
+        "hardware_homedepot_p3": {
+          "n": 8942,
+          "median_rigid_share": 0.9618969559669495
+        },
+        "hardware_homedepot_p4": {
+          "n": 6778,
+          "median_rigid_share": 0.9546694159507751
+        },
+        "hardware_homedepot_p5": {
+          "n": 9216,
+          "median_rigid_share": 0.9436157941818237
+        },
+        "home_bedroom": {
+          "n": 6905,
+          "median_rigid_share": 0.9677672386169434
+        },
+        "home_kitchen_p1": {
+          "n": 13005,
+          "median_rigid_share": 0.9516099095344543
+        },
+        "home_kitchen_p2": {
+          "n": 3887,
+          "median_rigid_share": 0.9718098640441895
+        },
+        "home_kitchen_p3": {
+          "n": 1859,
+          "median_rigid_share": 0.9797999858856201
+        },
+        "office_csail_p1": {
+          "n": 6707,
+          "median_rigid_share": 0.9523627758026123
+        },
+        "office_csail_p2": {
+          "n": 5329,
+          "median_rigid_share": 0.9518706202507019
+        },
+        "office_ml_p1": {
+          "n": 20303,
+          "median_rigid_share": 0.9274892807006836
+        },
+        "office_ml_p2": {
+          "n": 15732,
+          "median_rigid_share": 0.9466260671615601
+        },
+        "sports_dicks_p1": {
+          "n": 6380,
+          "median_rigid_share": 0.9658586978912354
+        },
+        "sports_dicks_p2": {
+          "n": 7431,
+          "median_rigid_share": 0.9847671985626221
+        }
+      }
+    },
+    "4": {
+      "n_pairs": 200000,
+      "median_rigid_share": 0.9612113833427429,
+      "mean_rigid_share": 0.8515107035636902,
+      "frac_above_80pct": 0.756205,
+      "frac_above_90pct": 0.647885,
+      "ms_ahead": 133.33333333333334,
+      "by_group": {
+        "eat_mcdonalds": {
+          "n": 3231,
+          "median_rigid_share": 0.9790657162666321
+        },
+        "eat_ygf_p1": {
+          "n": 1521,
+          "median_rigid_share": 0.9748905301094055
+        },
+        "eat_ygf_p2": {
+          "n": 4191,
+          "median_rigid_share": 0.9949356317520142
+        },
+        "fablab_ml_p1": {
+          "n": 8989,
+          "median_rigid_share": 0.9179335236549377
+        },
+        "fablab_ml_p2": {
+          "n": 9014,
+          "median_rigid_share": 0.943006157875061
+        },
+        "fablab_ml_p3": {
+          "n": 4538,
+          "median_rigid_share": 0.958453893661499
+        },
+        "grocery_plant": {
+          "n": 5592,
+          "median_rigid_share": 0.9748870134353638
+        },
+        "grocery_target_p1": {
+          "n": 6105,
+          "median_rigid_share": 0.9793418645858765
+        },
+        "grocery_target_p2": {
+          "n": 8729,
+          "median_rigid_share": 0.9741988778114319
+        },
+        "grocery_target_p3": {
+          "n": 16487,
+          "median_rigid_share": 0.9742129445075989
+        },
+        "grocery_tj": {
+          "n": 8002,
+          "median_rigid_share": 0.9576221108436584
+        },
+        "hardware_homedepot_p1": {
+          "n": 3093,
+          "median_rigid_share": 0.932246744632721
+        },
+        "hardware_homedepot_p2": {
+          "n": 8094,
+          "median_rigid_share": 0.9653924703598022
+        },
+        "hardware_homedepot_p3": {
+          "n": 8969,
+          "median_rigid_share": 0.9636420011520386
+        },
+        "hardware_homedepot_p4": {
+          "n": 6841,
+          "median_rigid_share": 0.9592731595039368
+        },
+        "hardware_homedepot_p5": {
+          "n": 9102,
+          "median_rigid_share": 0.9416957497596741
+        },
+        "home_bedroom": {
+          "n": 6994,
+          "median_rigid_share": 0.9668971300125122
+        },
+        "home_kitchen_p1": {
+          "n": 13105,
+          "median_rigid_share": 0.9539223313331604
+        },
+        "home_kitchen_p2": {
+          "n": 3883,
+          "median_rigid_share": 0.9741135239601135
+        },
+        "home_kitchen_p3": {
+          "n": 1849,
+          "median_rigid_share": 0.980726957321167
+        },
+        "office_csail_p1": {
+          "n": 6635,
+          "median_rigid_share": 0.9524015188217163
+        },
+        "office_csail_p2": {
+          "n": 5359,
+          "median_rigid_share": 0.9489685893058777
+        },
+        "office_ml_p1": {
+          "n": 20255,
+          "median_rigid_share": 0.9258479475975037
+        },
+        "office_ml_p2": {
+          "n": 15789,
+          "median_rigid_share": 0.9476634860038757
+        },
+        "sports_dicks_p1": {
+          "n": 6303,
+          "median_rigid_share": 0.9724588990211487
+        },
+        "sports_dicks_p2": {
+          "n": 7330,
+          "median_rigid_share": 0.9891273975372314
+        }
+      }
+    },
+    "8": {
+      "n_pairs": 200000,
+      "median_rigid_share": 0.9607611298561096,
+      "mean_rigid_share": 0.8529382944107056,
+      "frac_above_80pct": 0.75405,
+      "frac_above_90pct": 0.644165,
+      "ms_ahead": 266.6666666666667,
+      "by_group": {
+        "eat_mcdonalds": {
+          "n": 3239,
+          "median_rigid_share": 0.9783716201782227
+        },
+        "eat_ygf_p1": {
+          "n": 1557,
+          "median_rigid_share": 0.9813396334648132
+        },
+        "eat_ygf_p2": {
+          "n": 4154,
+          "median_rigid_share": 0.995256781578064
+        },
+        "fablab_ml_p1": {
+          "n": 9028,
+          "median_rigid_share": 0.9274633526802063
+        },
+        "fablab_ml_p2": {
+          "n": 9024,
+          "median_rigid_share": 0.9430474638938904
+        },
+        "fablab_ml_p3": {
+          "n": 4522,
+          "median_rigid_share": 0.9606162309646606
+        },
+        "grocery_plant": {
+          "n": 5568,
+          "median_rigid_share": 0.9762599468231201
+        },
+        "grocery_target_p1": {
+          "n": 6055,
+          "median_rigid_share": 0.9791499972343445
+        },
+        "grocery_target_p2": {
+          "n": 8702,
+          "median_rigid_share": 0.9733818173408508
+        },
+        "grocery_target_p3": {
+          "n": 16528,
+          "median_rigid_share": 0.9754005670547485
+        },
+        "grocery_tj": {
+          "n": 8005,
+          "median_rigid_share": 0.9644742608070374
+        },
+        "hardware_homedepot_p1": {
+          "n": 3073,
+          "median_rigid_share": 0.9325962066650391
+        },
+        "hardware_homedepot_p2": {
+          "n": 8053,
+          "median_rigid_share": 0.9636887907981873
+        },
+        "hardware_homedepot_p3": {
+          "n": 8907,
+          "median_rigid_share": 0.962386429309845
+        },
+        "hardware_homedepot_p4": {
+          "n": 6797,
+          "median_rigid_share": 0.9592339396476746
+        },
+        "hardware_homedepot_p5": {
+          "n": 9122,
+          "median_rigid_share": 0.9368191957473755
+        },
+        "home_bedroom": {
+          "n": 6986,
+          "median_rigid_share": 0.9533460736274719
+        },
+        "home_kitchen_p1": {
+          "n": 13099,
+          "median_rigid_share": 0.9509438872337341
+        },
+        "home_kitchen_p2": {
+          "n": 3884,
+          "median_rigid_share": 0.9722620248794556
+        },
+        "home_kitchen_p3": {
+          "n": 1860,
+          "median_rigid_share": 0.9830257892608643
+        },
+        "office_csail_p1": {
+          "n": 6757,
+          "median_rigid_share": 0.9465844035148621
+        },
+        "office_csail_p2": {
+          "n": 5313,
+          "median_rigid_share": 0.9403762817382812
+        },
+        "office_ml_p1": {
+          "n": 20274,
+          "median_rigid_share": 0.9224903583526611
+        },
+        "office_ml_p2": {
+          "n": 15808,
+          "median_rigid_share": 0.9468891024589539
+        },
+        "sports_dicks_p1": {
+          "n": 6353,
+          "median_rigid_share": 0.9737064242362976
+        },
+        "sports_dicks_p2": {
+          "n": 7332,
+          "median_rigid_share": 0.9898278713226318
+        }
+      }
+    },
+    "16": {
+      "n_pairs": 152400,
+      "median_rigid_share": 0.9558807611465454,
+      "mean_rigid_share": 0.8518871665000916,
+      "frac_above_80pct": 0.7483333333333333,
+      "frac_above_90pct": 0.6297047244094488,
+      "ms_ahead": 533.3333333333334,
+      "by_group": {
+        "eat_mcdonalds": {
+          "n": 2480,
+          "median_rigid_share": 0.9730255603790283
+        },
+        "eat_ygf_p1": {
+          "n": 1180,
+          "median_rigid_share": 0.9828314185142517
+        },
+        "eat_ygf_p2": {
+          "n": 3160,
+          "median_rigid_share": 0.9949412941932678
+        },
+        "fablab_ml_p1": {
+          "n": 6900,
+          "median_rigid_share": 0.9369120001792908
+        },
+        "fablab_ml_p2": {
+          "n": 6880,
+          "median_rigid_share": 0.9417331218719482
+        },
+        "fablab_ml_p3": {
+          "n": 3440,
+          "median_rigid_share": 0.9558589458465576
+        },
+        "grocery_plant": {
+          "n": 4260,
+          "median_rigid_share": 0.979053258895874
+        },
+        "grocery_target_p1": {
+          "n": 4640,
+          "median_rigid_share": 0.9735885262489319
+        },
+        "grocery_target_p2": {
+          "n": 6620,
+          "median_rigid_share": 0.97148197889328
+        },
+        "grocery_target_p3": {
+          "n": 12560,
+          "median_rigid_share": 0.9708776473999023
+        },
+        "grocery_tj": {
+          "n": 6100,
+          "median_rigid_share": 0.9693628549575806
+        },
+        "hardware_homedepot_p1": {
+          "n": 2340,
+          "median_rigid_share": 0.930309534072876
+        },
+        "hardware_homedepot_p2": {
+          "n": 6140,
+          "median_rigid_share": 0.9611032009124756
+        },
+        "hardware_homedepot_p3": {
+          "n": 6780,
+          "median_rigid_share": 0.9556915760040283
+        },
+        "hardware_homedepot_p4": {
+          "n": 5200,
+          "median_rigid_share": 0.955992579460144
+        },
+        "hardware_homedepot_p5": {
+          "n": 6960,
+          "median_rigid_share": 0.9223647713661194
+        },
+        "home_bedroom": {
+          "n": 5300,
+          "median_rigid_share": 0.9087141156196594
+        },
+        "home_kitchen_p1": {
+          "n": 9940,
+          "median_rigid_share": 0.9442048072814941
+        },
+        "home_kitchen_p2": {
+          "n": 2960,
+          "median_rigid_share": 0.9695111513137817
+        },
+        "home_kitchen_p3": {
+          "n": 1420,
+          "median_rigid_share": 0.9836567640304565
+        },
+        "office_csail_p1": {
+          "n": 5140,
+          "median_rigid_share": 0.9280996322631836
+        },
+        "office_csail_p2": {
+          "n": 4060,
+          "median_rigid_share": 0.9112931489944458
+        },
+        "office_ml_p1": {
+          "n": 15460,
+          "median_rigid_share": 0.9156224727630615
+        },
+        "office_ml_p2": {
+          "n": 12060,
+          "median_rigid_share": 0.9399363994598389
+        },
+        "sports_dicks_p1": {
+          "n": 4840,
+          "median_rigid_share": 0.974852442741394
+        },
+        "sports_dicks_p2": {
+          "n": 5580,
+          "median_rigid_share": 0.9900587201118469
+        }
+      }
+    }
+  }
+}

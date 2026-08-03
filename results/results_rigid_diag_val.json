@@ -1,0 +1,82 @@
+{
+  "split": "val",
+  "sequence_length": 20,
+  "horizons": {
+    "2": {
+      "n_samples": 28296,
+      "rigid_fraction_median": 0.952251672744751,
+      "rigid_fraction_mean": 0.8295198678970337,
+      "rigid_fraction_p25": 0.7745452523231506,
+      "rigid_fraction_p75": 0.991273045539856,
+      "frac_samples_over_50pct_rigid": 0.8788167834281921,
+      "frac_samples_over_80pct_rigid": 0.731234073638916,
+      "axis_energy_current_target_xyz": [
+        0.3298107981681824,
+        0.3866872787475586,
+        0.2835019528865814
+      ],
+      "axis_energy_rigid_removed_handframe_long_flex_normal": [
+        0.4823338985443115,
+        0.18996727466583252,
+        0.32769888639450073
+      ]
+    },
+    "4": {
+      "n_samples": 25152,
+      "rigid_fraction_median": 0.9568869471549988,
+      "rigid_fraction_mean": 0.845117449760437,
+      "rigid_fraction_p25": 0.7903624176979065,
+      "rigid_fraction_p75": 0.9925068616867065,
+      "frac_samples_over_50pct_rigid": 0.8947200775146484,
+      "frac_samples_over_80pct_rigid": 0.7429627776145935,
+      "axis_energy_current_target_xyz": [
+        0.3331429660320282,
+        0.3832612931728363,
+        0.2835956811904907
+      ],
+      "axis_energy_rigid_removed_handframe_long_flex_normal": [
+        0.4880605936050415,
+        0.18812887370586395,
+        0.3238105773925781
+      ]
+    },
+    "8": {
+      "n_samples": 18864,
+      "rigid_fraction_median": 0.9572345614433289,
+      "rigid_fraction_mean": 0.8482435941696167,
+      "rigid_fraction_p25": 0.7937803864479065,
+      "rigid_fraction_p75": 0.9930351972579956,
+      "frac_samples_over_50pct_rigid": 0.9011344313621521,
+      "frac_samples_over_80pct_rigid": 0.7446988821029663,
+      "axis_energy_current_target_xyz": [
+        0.3298947513103485,
+        0.3822551667690277,
+        0.287850022315979
+      ],
+      "axis_energy_rigid_removed_handframe_long_flex_normal": [
+        0.503282904624939,
+        0.18149526417255402,
+        0.3152218163013458
+      ]
+    },
+    "16": {
+      "n_samples": 6288,
+      "rigid_fraction_median": 0.9555473327636719,
+      "rigid_fraction_mean": 0.8569008111953735,
+      "rigid_fraction_p25": 0.7992293834686279,
+      "rigid_fraction_p75": 0.9930490255355835,
+      "frac_samples_over_50pct_rigid": 0.9166666865348816,
+      "frac_samples_over_80pct_rigid": 0.7492048144340515,
+      "axis_energy_current_target_xyz": [
+        0.32035699486732483,
+        0.3789639174938202,
+        0.30067911744117737
+      ],
+      "axis_energy_rigid_removed_handframe_long_flex_normal": [
+        0.5334325432777405,
+        0.168484166264534,
+        0.2980833351612091
+      ]
+    }
+  }
+}

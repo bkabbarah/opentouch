@@ -917,6 +917,49 @@ a policy, which needs lead time, and it is the opposite of the delta target's
 behaviour, where the pose-only margin vanished at k=16 and the interval
 crossed zero (§2.19b).
 
+### 2.25 Rotation share: the diagnostic validates, and it holds in all 26 scenes
+
+`results/results_rotation_share_opentouch.json`,
+`results/results_rigid_diag_val.json`. Both sides of this comparison now have
+a JSON; §2.7's 0.957 previously existed only as stdout in a doc.
+
+**Validation.** `scripts/rotation_share.py` is the dataset-agnostic path meant
+to run on public datasets. It reproduces this project's own figure:
+
+| path | split / seq len | k=2 | k=4 | k=8 | k=16 |
+|---|---|---|---|---|---|
+| `rigid_diag.py` (reference) | val, 20 | 0.9523 | 0.9569 | **0.9572** | 0.9555 |
+| `rotation_share.py` (agnostic) | train+val+test, 36 | 0.9572 | 0.9612 | **0.9608** | 0.9559 |
+
+0.004 apart at k=8. **The agnostic path is trustworthy; cross-dataset numbers
+from it can be believed.**
+
+> **Two caveats on what that validation actually buys.** First, the two runs
+> are not apples-to-apples — different split and different window length (the
+> table states both). They agree anyway. Second, and more limiting: both
+> scripts import the *same* `rigid_fraction` from
+> `opentouch/articulation_frames.py`, so they cannot disagree on the
+> mathematics. This validates the data-loading path only. The maths is covered
+> by `tests/test_articulation_frames.py`, not by this comparison.
+
+**Generalization across scenes — the part worth putting in the paper.** The
+share broken down over 26 recording sessions, k=2, 7,620 windows:
+
+| | median rigid share |
+|---|---|
+| highest scene (`eat_ygf_p2`) | 99.3% |
+| lowest scene (`fablab_ml_p1`) | **90.5%** |
+| all 26 scenes | **every one above 90%** |
+
+Spanning grocery aisles, an office, a fab lab, home kitchens, hardware stores,
+sports retail and eating. This is the difference between "we measured this
+once" and "this holds across every activity we have" — and it cost no GPU
+time. It is not a substitute for a second dataset, but it is the strongest
+form of the claim currently available.
+
+**The share is also flat in horizon** (0.957 / 0.961 / 0.961 / 0.956 at
+k=2/4/8/16), so this is not an artifact of one prediction distance.
+
 ### 2.20 Retrieval bootstrap CIs — open question #2 closed
 
 Clip-clustered, 1000 draws, fixed gallery (queries resampled only). T→P mAP:
@@ -989,6 +1032,22 @@ k=16 interval excludes zero", not "curl is the strongest axis".
    relabeling (verified to 5e-07). Anatomy could not have helped by
    construction. Recommend removing this result entirely.
 8. **"curl grows monotonically with horizon"** is false (dips at k=4).
+9. **§2.24's "every comparison is larger at 533ms than at 267ms" is too broad.**
+   True for both AUC contrasts. **False for touch − pose-only R²**, which goes
+   the *other* way: +0.058 at k=8 → **+0.041** at k=16 (3/4 partitions positive
+   at both horizons). §2.24's table only lists AUC, so the table is fine; the
+   sentence is not. Scope it to "every AUC comparison" — a reviewer who
+   computes R² will otherwise find this.
+10. **§2.23's "2 model seeds per cell" is wrong for one cell.** Partition 42 at
+    k=8 (`results_aperture_earlystop.json`) has **3** seeds; every other cell
+    has 2. Consequently §2.24's "epoch selection has reproduced 16/16" is
+    really **17/17** — the claim holds, the count was undercounted.
+11. **§2.7's 0.957 had no JSON behind it** ("results printed to stdout only"),
+    so it could not be re-derived. Regenerated as
+    `results/results_rigid_diag_val.json`; it reproduces exactly. See §2.25.
+
+Corrections 9–11 verified 2026-08-03 by re-deriving every §2.22–§2.24 cell
+from the result JSONs. Everything else in those sections reproduced exactly.
 
 Full detail with file:line in `AUDIT.md`.
 
