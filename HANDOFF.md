@@ -18,7 +18,8 @@ out on the cluster at `~/scratch/bashar/opentouch-gru`).
 > positive on all four participant partitions**, and beat pose-only by +0.054
 > AUC, out of sample with the stopping epoch chosen on val and the number
 > reported on test. **It is the only forecasting result that survives
-> redrawing the participant partition.**
+> redrawing the participant partition** — and it gets STRONGER at k=16
+> (+0.143 vs shuffled, +0.069 vs pose-only, again 4/4; see §2.24).
 >
 > **§2.19's 15% is NOT that claim and should not be quoted as one.** Its
 > capacity-matched contrast across redrawn partitions went −15.0%, −5.8%,
@@ -875,8 +876,46 @@ a capacity-matched control by +0.11 AUC on average across four participant
 partitions, positive in all four, and beat a pose-only model by +0.054 AUC,
 out of sample on participants held out of every training stage.
 
-**Limits:** 3 held-out scenes per partition, 2 model seeds per cell, one
-partition where the pose-only margin is a wash, k=8 only.
+**Limits:** 3 held-out scenes per partition, 2 model seeds per cell.
+
+### 2.24 Aperture at k=16 — the effect STRENGTHENS with horizon
+
+`results_aperture_k16_ss{42,1,2,3}.json`. Identical protocol to §2.23, so the
+horizons are directly comparable.
+
+| partition | k=8 touch/pose/shuf AUC | k=16 touch/pose/shuf AUC |
+|---|---|---|
+| 42 | 0.665 / 0.601 / 0.517 | **0.721** / 0.652 / 0.518 |
+| 1 | 0.610 / 0.608 / 0.536 | 0.673 / 0.644 / 0.574 |
+| 2 | 0.657 / 0.581 / 0.558 | 0.693 / 0.573 / 0.548 |
+| 3 | 0.671 / 0.599 / 0.551 | 0.712 / 0.653 / 0.585 |
+
+| contrast (AUC) | k=8 | k=16 |
+|---|---|---|
+| touch − shuffled (capacity-matched) | +0.110 [+0.074, +0.148] · 4/4 | **+0.143** [+0.099, +0.203] · **4/4** |
+| touch − pose-only | +0.054 [+0.002, +0.076] · 4/4 | **+0.069** [+0.029, +0.120] · **4/4** |
+
+Touch-alone AUC rises 0.651 → 0.700. **Every comparison is larger at 533ms
+than at 267ms**, and both replicate on all four partitions.
+
+Three points worth keeping:
+
+- **The weak partition firms up.** Partition 1's pose-only margin was +0.002
+  at k=8 (a wash); at k=16 it is +0.029. The one soft spot in §2.23 improves
+  rather than degrades.
+- **Epoch selection has now reproduced 16/16.** Touch selects epochs 2-8 in
+  every run; pose-only selects 30-60 in every run, across 2 horizons x 4
+  partitions x 2 seeds, no exceptions.
+- **k=16 should be harder** — ~40% fewer samples (11 valid timesteps per
+  window rather than 19) and a more distant target. Every arm improving, with
+  touch improving most, points at longer-range structure rather than immediate
+  contact dynamics.
+
+**Interpretation:** touch is not reporting the instant of contact; it carries
+information about where the grip is *heading*. That is the useful reading for
+a policy, which needs lead time, and it is the opposite of the delta target's
+behaviour, where the pose-only margin vanished at k=16 and the interval
+crossed zero (§2.19b).
 
 ### 2.20 Retrieval bootstrap CIs — open question #2 closed
 
