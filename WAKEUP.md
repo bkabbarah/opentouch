@@ -86,6 +86,27 @@ does not exist. Corrected order is **DexYCB → HO-3D → ARCTIC**.
 
 ---
 
+## 4b. When `aphz` and `probesweep` finish, preserve their JSONs
+
+Both sweeps write to the **repo root**, where `results_*.json` is gitignored on
+purpose. Nothing is tracked until you copy it in — and cluster access ends
+~2026-08-07, so do this before then.
+
+```bash
+ssh bashark@mib.media.mit.edu 'cd ~/scratch/bashar/opentouch-gru && grep -l . results_aperture_k[24]_ss*.json results_probe_rigid_k*_SCENE_CLEANENC.json results_probe_rigid_k*_seed*.json results_probe_rigid_k*_RANDENC.json 2>/dev/null'
+```
+
+then, for whatever that lists:
+
+```bash
+ssh bashark@mib.media.mit.edu 'cd ~/scratch/bashar/opentouch-gru && cp results_aperture_k[24]_ss*.json results_probe_*.json results/ 2>/dev/null; git add results/ && git commit -m "results: aperture horizons k=2,4 and the probe paper sweep" && git push'
+```
+
+Do **not** trust any summary of these without re-deriving the contrasts from
+the JSONs — that is what turned up corrections 9–11 last night.
+
+---
+
 ## 5. What ran while you slept
 
 - **`rotshare` finished and PASSED.** The agnostic diagnostic gives 0.961 at
@@ -104,3 +125,18 @@ does not exist. Corrected order is **DexYCB → HO-3D → ARCTIC**.
 ```bash
 ssh bashark@mib.media.mit.edu 'tail -3 /tmp/aphz_master.log; tail -2 /tmp/probesweep_master.log'
 ```
+
+### One housekeeping note
+
+To pull the new code onto the cluster I ran `git stash -u`, and the matching
+`git stash drop` was blocked by a permission guard, so **`stash@{0}` is still
+sitting in the cluster repo**. It is redundant — every file in it is either
+restored in the working tree or now tracked in git, and `git stash show` on it
+reports zero tracked changes. Clear it whenever you like:
+
+```bash
+ssh bashark@mib.media.mit.edu 'cd ~/scratch/bashar/opentouch-gru && git stash drop stash@{0}'
+```
+
+`stash@{1}` is older than this session and is not mine — leave it alone unless
+you know what it is.
