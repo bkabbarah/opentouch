@@ -26,10 +26,15 @@ from load_public_hands import (  # noqa: E402
     MANO_TO_MEDIAPIPE,
     NATIVE_ORDER,
     check_joint_order,
+    dedupe_views,
+    drop_rigid_templates,
+    is_rigid_template,
     load_dexycb,
     load_ho3d,
+    pairwise_distance_profile,
     reorder,
     split_on_gaps,
+    view_signature,
 )
 
 
@@ -200,6 +205,83 @@ def _write_dexycb(root, subject, take, cameras, joints_per_frame):
             np.savez(os.path.join(cam_dir, "labels_%06d.npz" % idx),
                      joint_3d=joints.reshape(1, 21, 3),
                      joint_2d=np.zeros((1, 21, 2), dtype=np.float32))
+
+
+def test_rigid_template_is_detected():
+    """A hand re-posed rigidly has no articulation in it and scores 1.0 by
+    construction. HO-3D's MC/ND/SM/SS/SiS sequences are exactly this."""
+    base = synthetic_hand(1)[0]
+    frames = []
+    for t in range(40):
+        th = 0.05 * t
+        r = np.array([[np.cos(th), -np.sin(th), 0], [np.sin(th), np.cos(th), 0], [0, 0, 1]],
+                     dtype=np.float32)
+        frames.append(base @ r.T + np.array([0.01 * t, 0, 0], dtype=np.float32))
+    assert is_rigid_template(np.stack(frames))
+
+
+def test_real_articulation_is_not_flagged_as_rigid():
+    assert not is_rigid_template(synthetic_hand(40))
+
+
+def test_drop_rigid_templates_keeps_the_articulating_one():
+    base = synthetic_hand(1)[0]
+    frozen = np.stack([base + np.array([0.01 * t, 0, 0], dtype=np.float32) for t in range(30)])
+    seqs, groups = drop_rigid_templates([frozen, synthetic_hand(30)], ["MC1", "ABF10"])
+    assert groups == ["ABF10"]
+    assert len(seqs) == 1
+
+
+def test_duplicate_camera_views_collapse_to_one():
+    """Two views of one take differ in coordinates but not in hand shape, so
+    their rigid shares are identical and only one carries information."""
+    hand = synthetic_hand(30)
+    th = 0.9
+    r = np.array([[np.cos(th), 0, np.sin(th)], [0, 1, 0], [-np.sin(th), 0, np.cos(th)]],
+                 dtype=np.float32)
+    other_view = hand @ r.T + np.array([5.0, -2.0, 1.0], dtype=np.float32)
+
+    # The coarse key must at least put them in the same bucket...
+    assert view_signature(hand) == view_signature(other_view)
+    # ...and the tolerant comparison must then actually merge them.
+    seqs, groups = dedupe_views([hand, other_view], ["ABF10", "ABF11"])
+    assert groups == ["ABF10"] and len(seqs) == 1
+
+
+def test_dedupe_survives_float_noise_that_defeats_hashing():
+    """Two views agree to ~1e-7, which no rounding-based hash can match
+    reliably: with thousands of values per sequence some value always lands on
+    a rounding boundary. Dedupe must not depend on exact equality."""
+    hand = synthetic_hand(30)
+    jittered = hand + np.float32(3e-7)
+    seqs, _ = dedupe_views([hand, jittered], ["ABF10", "ABF11"])
+    assert len(seqs) == 1
+
+
+def test_genuinely_different_takes_are_not_collapsed():
+    a, b = synthetic_hand(30, seed=0), synthetic_hand(30, seed=99)
+    seqs, _ = dedupe_views([a, b], ["MC1", "MC2"])
+    assert len(seqs) == 2, "different motion must survive as separate takes"
+
+
+def test_same_length_different_motion_shares_a_bucket_but_not_a_merge():
+    """Guards the bucket-then-verify design: a coarse-key collision must not
+    silently merge two genuinely different takes."""
+    a = synthetic_hand(30, seed=1)
+    b = a.copy()
+    b[:, 8] += np.array([0.05, 0.0, 0.0], dtype=np.float32)  # move one finger joint
+    seqs, _ = dedupe_views([a, b], ["X1", "X2"])
+    assert len(seqs) == 2
+
+
+def test_pairwise_profile_is_rigid_invariant():
+    hand = synthetic_hand(20)
+    th = 0.4
+    r = np.array([[1, 0, 0], [0, np.cos(th), -np.sin(th)], [0, np.sin(th), np.cos(th)]],
+                 dtype=np.float32)
+    moved = hand @ r.T + np.array([-3.0, 7.0, 0.5], dtype=np.float32)
+    assert np.allclose(pairwise_distance_profile(hand),
+                       pairwise_distance_profile(moved), atol=1e-4)
 
 
 def test_native_orders_are_per_dataset():

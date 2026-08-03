@@ -7,7 +7,8 @@ has to turn HO-3D pickles / DexYCB npz / ARCTIC npy into that array, and that
 conversion is where the silent-wrong-answer risk lives. This file is that
 conversion, with the traps made loud.
 
-THREE TRAPS THIS FILE EXISTS TO STOP.
+FOUR TRAPS THIS FILE EXISTS TO STOP. Traps 3 and 4 were both found by looking
+at real HO-3D output that appeared entirely reasonable.
 
 1. JOINT ORDER. OpenTouch uses the MediaPipe layout -- 0 wrist, then thumb,
    index, middle, ring, pinky, four joints each, so index MCP is 5, middle MCP
@@ -50,6 +51,23 @@ THREE TRAPS THIS FILE EXISTS TO STOP.
    information, and would make any confidence interval eight times too tight.
    One camera per sequence, by default the first.
 
+   HO-3D has the same problem in a form that a path-based rule MISSES: the
+   camera is the last character of the sequence NAME, so ABF10..ABF14 are five
+   views of one take. And the naming is not a reliable rule either -- MC1..MC6
+   have the same shape but are six genuinely different takes. So dedupe_views()
+   works on CONTENT, via a rigid-invariant fingerprint, not on filenames.
+
+4. ANNOTATIONS WITH NO ARTICULATION IN THEM. Six HO-3D sequence families
+   (MC, ND, SM, SMu1, SS, SiS -- 15 of 55 recordings) have EXACTLY zero
+   variation in their intra-hand joint distances across the whole sequence:
+   the annotation is one frozen hand template being re-posed rigidly.
+
+   These score exactly 1.0 on the rotation-share diagnostic, because 100% of
+   their wrist-relative motion genuinely is rigid rotation. That is a fact
+   about the annotation pipeline, not about hand motion, and averaging it in
+   inflates the headline. drop_rigid_templates() removes them and says so.
+   This one is nasty because the resulting number looks entirely plausible.
+
 USAGE
     python scripts/load_public_hands.py ho3d   --root /scratch/.../HO3D_v3 --out-prefix ho3d
     python scripts/load_public_hands.py dexycb --root /scratch/.../dexycb  --out-prefix dexycb
@@ -64,6 +82,7 @@ then
 from __future__ import annotations
 
 import argparse
+
 import json
 import os
 import pickle
@@ -92,6 +111,112 @@ INDEX_MCP, MIDDLE_MCP, PINKY_MCP = 5, 9, 17
 # In MediaPipe order each finger is four consecutive joints running outward
 # from the palm: (MCP, PIP, DIP, TIP).
 FINGER_CHAINS = [tuple(range(1 + 4 * f, 5 + 4 * f)) for f in range(5)]
+
+
+def pairwise_distance_profile(seq: np.ndarray) -> np.ndarray:
+    """(T,21,3) -> (T,210) of intra-hand joint-to-joint distances.
+
+    These are invariant to ANY rigid motion of the hand, which makes them the
+    right tool for both guards below: two camera views of one take give the
+    SAME profile, and a hand whose shape never changes gives a CONSTANT one.
+    """
+    diff = seq[:, :, None, :] - seq[:, None, :, :]
+    dist = np.linalg.norm(diff, axis=-1)
+    iu = np.triu_indices(seq.shape[1], k=1)
+    return dist[:, iu[0], iu[1]]
+
+
+def is_rigid_template(seq: np.ndarray, tol: float = 1e-4) -> bool:
+    """True when the hand's SHAPE never changes over the sequence -- i.e. the
+    annotation is one frozen hand being re-posed rigidly, with no articulation
+    in it at all.
+
+    Such sequences are worse than useless for the rotation-share diagnostic:
+    they score exactly 1.0 by construction, because 100% of the wrist-relative
+    motion really is rigid rotation. Including them does not measure hand
+    motion, it measures the annotation pipeline, and it inflates the result.
+    HO-3D's MC / ND / SM / SMu1 / SS / SiS sequences are exactly this.
+    """
+    profile = pairwise_distance_profile(seq)
+    scale = float(profile.mean())
+    if scale <= 0:
+        return True
+    return float((profile.std(axis=0) / scale).max()) < tol
+
+
+_VIEW_PROBE_FRAMES = 64
+
+
+def _view_profile(seq: np.ndarray) -> np.ndarray:
+    """Pairwise-distance profile on at most _VIEW_PROBE_FRAMES evenly spaced
+    frames -- enough to separate genuinely different takes, and bounded in
+    memory for HO-3D's 2000-frame sequences."""
+    idx = np.linspace(0, seq.shape[0] - 1, min(seq.shape[0], _VIEW_PROBE_FRAMES)).astype(int)
+    return pairwise_distance_profile(seq[idx]).astype(np.float32)
+
+
+def view_signature(seq: np.ndarray, decimals: int = 2) -> str:
+    """COARSE bucket key, deliberately not an equality test.
+
+    Keyed on the pairwise-distance profile rather than on joint coordinates,
+    because each camera reports the same hand in its own frame: the
+    coordinates differ, the profile does not. Content-based and not
+    filename-based because HO-3D encodes the camera inconsistently --
+    ABF10..ABF14 are five views of one take, but MC1..MC6 are six different
+    takes.
+
+    Only coarse. Two views of one take agree to ~4e-7 in float32, which is far
+    too tight to hash exactly: with ~6,000 values per sequence, some value
+    always straddles a rounding boundary no matter which decimal you pick.
+    So this buckets candidates and dedupe_views() confirms with an explicit
+    tolerant comparison.
+    """
+    p = _view_profile(seq)
+    return "%d|%.*f|%.*f" % (seq.shape[0], decimals, float(p.mean()), decimals, float(p.max()))
+
+
+def drop_rigid_templates(seqs, groups):
+    keep = [i for i, s in enumerate(seqs) if not is_rigid_template(s)]
+    dropped = len(seqs) - len(keep)
+    if dropped:
+        names = sorted({groups[i] for i in range(len(seqs)) if i not in set(keep)})
+        print("  dropped %d sequence(s) with NO articulation (rigid template, "
+              "would score 1.0 by construction): %s"
+              % (dropped, ", ".join(names[:12]) + (" ..." if len(names) > 12 else "")))
+    return [seqs[i] for i in keep], [groups[i] for i in keep]
+
+
+def dedupe_views(seqs, groups):
+    """Keep one sequence per distinct rigid-invariant signature.
+
+    Multiple synchronised views of one take have identical rigid shares by
+    construction, so keeping them all multiplies apparent n while adding zero
+    information and makes any interval far too tight.
+    """
+    buckets: dict = {}
+    keep, members = [], []
+    for i, s in enumerate(seqs):
+        key = view_signature(s)
+        prof = _view_profile(s)
+        hit = None
+        for slot, ref in buckets.get(key, []):
+            if ref.shape == prof.shape and np.allclose(ref, prof, rtol=1e-4, atol=1e-6):
+                hit = slot
+                break
+        if hit is not None:
+            members[hit].append(groups[i])
+            continue
+        buckets.setdefault(key, []).append((len(keep), prof))
+        keep.append(i)
+        members.append([groups[i]])
+
+    collapsed = len(seqs) - len(keep)
+    if collapsed:
+        sizes = sorted((len(m) for m in members if len(m) > 1), reverse=True)
+        print("  collapsed %d duplicate view(s): %d take(s) had multiple "
+              "synchronised cameras (group sizes %s)"
+              % (collapsed, len(sizes), sizes[:10]))
+    return [seqs[i] for i in keep], [groups[i] for i in keep]
 
 
 def reorder(seq: np.ndarray, order: str) -> np.ndarray:
@@ -398,6 +523,12 @@ def main():
     ap.add_argument("--side", default="right", help="ARCTIC only")
     ap.add_argument("--no-strict-order-check", action="store_true",
                     help="warn instead of failing when the layout check trips")
+    ap.add_argument("--keep-rigid-templates", action="store_true",
+                    help="keep sequences whose hand shape never changes; they "
+                         "score 1.0 by construction and inflate the result")
+    ap.add_argument("--keep-duplicate-views", action="store_true",
+                    help="keep synchronised camera views of the same take; "
+                         "they are numerically identical and inflate n")
     args = ap.parse_args()
 
     order = args.joint_order or NATIVE_ORDER[args.dataset]
@@ -414,6 +545,20 @@ def main():
     seqs, groups = LOADERS[args.dataset](args.root, **kw)
     if not seqs:
         raise SystemExit("no usable sequences found under %s" % args.root)
+
+    n_raw = len(seqs)
+    if not args.keep_rigid_templates:
+        seqs, groups = drop_rigid_templates(seqs, groups)
+    if not args.keep_duplicate_views:
+        seqs, groups = dedupe_views(seqs, groups)
+    if not seqs:
+        raise SystemExit(
+            "every sequence was filtered out: %d were rigid templates or "
+            "duplicate views. Pass --keep-rigid-templates / "
+            "--keep-duplicate-views to inspect the raw data." % n_raw
+        )
+    if len(seqs) != n_raw:
+        print("  %d -> %d sequences after filtering" % (n_raw, len(seqs)))
 
     diag = check_joint_order(seqs, args.dataset, strict=not args.no_strict_order_check)
 
