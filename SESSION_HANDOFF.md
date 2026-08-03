@@ -111,27 +111,116 @@ Each cost real time. Do not re-learn them.
   was redrawn and it flipped sign. Nothing is believed until it survives
   redrawn partitions.
 
-## 5. Paper assessment
+## 5. Paper assessment — rewritten 2026-08-03
 
-**It is a measurement paper.** No new architecture, and §2.19f shows the
-learned representation is not what drives the headline probe marginal. That is
-fine for a workshop and fatal at a venue expecting method novelty.
+Everything below was re-derived from the JSONs in `results/`. Section numbers
+refer to `HANDOFF.md`.
 
-**Two contributions, both actionable:**
-1. The standard evaluation target is ~95% the wrong thing, and correcting it
-   reverses a published conclusion. (§2.2–§2.12, §2.7)
-2. **Contrastive retrieval quality is a poor proxy for downstream tactile
-   utility** — the encoder-quality ladder is flat across mAP 10.8→28.2
-   (§2.19c), and a random frozen encoder beats the pretrained one on
-   forecasting (§2.19d). **This is already measured and has never been framed
-   as a finding.** Zero new compute required.
+**It is still a measurement paper**, but the earlier line that it is "fatal at
+a venue expecting method novelty" rested on §2.19e and **no longer holds as
+stated** — see risk 1 below.
 
-Plus the downstream result: grip aperture, +0.11 AUC at k=8 and +0.14 at k=16
-over a capacity-matched control, 4/4 partitions (§2.23, §2.24).
+### The lead contribution is now cross-dataset
 
-**Do not put on a poster or in a paper:** §2.19's 15% (partition-dependent,
-and mostly measuring temporal pairing), the k=16 pose-only margin (CI includes
-zero).
+**The standard wrist-relative target is majority whole-hand rotation, on every
+dataset measured.** Not a property of one capture rig:
+
+| dataset | k=8 median rigid share | independent units |
+|---|---|---|
+| OpenTouch | 96.1% | 26 scenes |
+| DexYCB | 89.6% | 300 takes, 3 subjects |
+| HO-3D | 82.1% | 9 takes |
+
+Three things make this much stronger than the single 95.7% it replaces:
+
+- **It replicates on data we did not collect** (§2.28, §2.30), which was §3's
+  stated single biggest available upgrade. It is done.
+- **The magnitude tracks transport-vs-articulation**, and that ordering was
+  *predicted in writing before HO-3D was measured*. OpenTouch is a walking
+  body, DexYCB is seated grasping, HO-3D is a stationary arm. A prediction
+  that held on new data is worth more than any single number.
+- **It survives the obvious attack.** The rigid share *rises* with motion
+  magnitude on all three datasets (§2.29), so near-still frames drag the
+  published figure DOWN and every motion filter strengthens it. Above-median
+  motion at k=8: 98.0% / 94.0% / 91.5%.
+
+**Stop saying "~95%".** That is OpenTouch's number. Say: *majority whole-hand
+rotation on every dataset measured — 82%, 90%, 96% of target energy at 267 ms
+— with the magnitude tracking how much the hand is transported versus
+articulated in place.* Weaker, and far harder to dismiss.
+
+The target-correction consequence is unchanged and now rests on a
+three-encoder mean at four horizons (§2.27): corrected beats conventional
+~4x at k=2/4/8.
+
+### Contribution 2, and the risk attached to it
+
+**Contrastive retrieval quality is a poor proxy for downstream tactile
+utility.** Verified against the JSONs and *stronger* than previously written:
+the encoder ladder does not merely fail to improve, it **degrades** — mAP
+improves 2.6x (10.81 → 28.24) while the forecasting gain goes −8.97% → −6.90%
+(`results_encoder_ladder.json`).
+
+> **RISK 1, and it is the one to resolve first.** The second leg of this
+> contribution is "a random frozen encoder beats the pretrained one on
+> forecasting" (§2.19d) — **k=8, one seed**. §2.27 has just shown that the
+> *probe* version of exactly this claim was a **k=8 artifact**: at k=2 and k=4
+> the pretrained encoder gives roughly twice the marginal of a random one,
+> 7–9 encoder-seed sd outside noise, and k=8 is the single horizon where they
+> coincide. There is no reason to assume the forecasting version behaves
+> differently. **Run the forecasting random-encoder control at k=2 and k=4
+> before building a paper on this.** If it moves the same way, contribution 2
+> is horizon-specific and must be reworded, not withdrawn.
+
+**Correspondingly, the "no method novelty" verdict is now wrong as stated.**
+§2.19e concluded the learned representation is not what makes touch
+predictive; §2.27 shows that conclusion came from the one horizon where
+pretrained and random coincide. At k=2 and k=4 the learned representation
+accounts for **~55%** of the marginal. The honest claim is horizon-dependent:
+*the learned representation matters at short horizons and washes out by 267
+ms* — which is more interesting than either absolute version.
+
+### Downstream result: grip aperture
+
+Restated from §2.26's full horizon curve. **§2.24's "the effect strengthens
+with horizon" is wrong** and §2.24 now carries a superseded banner.
+
+| contrast | k=2 | k=4 | k=8 | k=16 |
+|---|---|---|---|---|
+| touch − shuffled (capacity-matched) | +0.112 | +0.114 | +0.110 | +0.143 |
+| touch − pose-only | **+0.088** | +0.072 | +0.054 | +0.069 |
+
+All 4/4 partitions at every horizon. **Lead with the capacity-matched
+contrast**: flat at +0.110–0.114 from 67–267 ms, positive in 16/16
+partition-horizon cells, never below +0.062 in any cell. The pose-only margin
+is largest at the *shortest* horizon and dips at k=8 — do not describe it as
+growing with lead time.
+
+Also solid and cheap to state: **epoch selection reproduces 25/25.** Touch
+selects epochs 2–12, pose-only 30–60, touch strictly earlier in every run
+across four horizons and four partitions.
+
+### Do not put in a paper
+
+- §2.19's 15% — partition-dependent, sign-flips, mostly temporal pairing.
+- **The k=16 probe marginal** (+0.0075) — encoder-seed sd is 0.0040, over half
+  the mean. §2.27 gives this independent support.
+- **The aperture horizon *shape***, unless the seeds get run — k=2 and k=4 are
+  one model seed per cell against 2–3 at k=8/k=16 (risk 2).
+- "Seed 42 is the outlier high" without qualification — true at k=8 and k=16,
+  false at k=2 and k=4 where seed 0 is highest (§2.27).
+- HO-3D's pooled figure without its range — 9 takes only, spread 49%–100%.
+
+### Open risks, in priority order
+
+1. **Forecasting random-encoder control is k=8-only, one seed.** Directly
+   threatens contribution 2. ~1 GPU-hour. Do this first.
+2. **Aperture k=2/k=4 are single-seed.** Threatens the horizon shape, not the
+   headline. ~2 GPU-hours.
+3. **Probe random-encoder is one seed per horizon.** k=2 and k=4 agree closely
+   (44%, 47% recovery) so this is the least likely to move. ~30 GPU-min.
+
+GPU access ends ~2026-08-07. All three fit. Nothing else needs the box.
 
 **Venues** — verify current CFPs, these shift: NeurIPS workshops (~Sept/Oct
 deadlines) are the best fit; ICRA (~Sept) plausible; ICLR workshops are
