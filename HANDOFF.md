@@ -929,6 +929,72 @@ a policy, which needs lead time, and it is the opposite of the delta target's
 behaviour, where the pose-only margin vanished at k=16 and the interval
 crossed zero (§2.19b).
 
+### 2.28 CROSS-DATASET: the rotation claim replicates on DexYCB
+
+`results/results_rotation_share_dexycb.json`, 2026-08-03. DexYCB
+subject-01, 100 takes, one camera per take, labels only (no images were ever
+written to disk). 6,928 frames after dropping 342 unannotated ones and
+splitting sequences at every gap.
+
+**This is the first evidence for the central claim from data this project did
+not collect.** DexYCB is NVIDIA's, recorded with a fixed multi-camera RealSense
+rig for tabletop grasping, annotated by a MANO fit — different lab, hardware,
+task and annotation pipeline from OpenTouch's egocentric free-living capture.
+
+| k | ms | DexYCB median rigid share | OpenTouch median |
+|---|---|---|---|
+| 2 | 67 | **81.4%** | 95.7% |
+| 4 | 133 | 86.1% | 96.1% |
+| 8 | 267 | **89.8%** | 96.1% |
+| 16 | 533 | 92.6% | 95.6% |
+
+**The claim holds: the standard wrist-relative "articulation" target is
+dominated by whole-hand rotation on both datasets.** At k=8, 89.8% of DexYCB's
+target energy is rotation the target was never meant to contain. Across the 100
+takes at k=8, **88/100 exceed 80%**, range 53.7%–97.4%.
+
+**But the magnitude is dataset-dependent, and the "~95%" figure is
+OpenTouch-specific.** Two differences worth stating plainly rather than
+burying:
+
+1. **DexYCB is lower** — 89.8% vs 96.1% at k=8.
+2. **DexYCB rises with horizon** (81.4% → 92.6%) where OpenTouch is flat
+   (~96% at every horizon).
+
+Both follow from what the hands are doing. DexYCB is seated tabletop grasping:
+the hand is roughly stationary and deliberately articulating, so true finger
+motion is a larger share of the target, and it dominates most at short
+horizons. OpenTouch is egocentric free-living — the hand is being carried
+around by a walking body through grocery aisles and hardware stores, so
+whole-hand transport dominates at every horizon. **The rigid share tracks how
+much the hand is being transported versus articulated in place.**
+
+That is a better result than two identical numbers would have been. It says
+the effect is not a quirk of one capture rig, it is a property of hand motion
+whose size varies with activity — and even in the most articulation-favourable
+case measured (tabletop grasping at 67 ms) **81% of the standard target is
+still rotation**.
+
+**How to state the claim now.** Not "the target is ~95% rotation" — that is
+OpenTouch's number. Say: *the standard wrist-relative target is dominated by
+whole-hand rotation, 81–96% of its energy depending on dataset and horizon,
+measured on two independent datasets.* The correction argument is unchanged and
+is now much harder to dismiss as a property of one capture setup.
+
+**Limits.** Subject-01 only, 1 of DexYCB's 10 subjects (02 and 03 downloading
+as of 08:00 — rerun the loader over the whole directory when they land and the
+numbers above will cover three people). One camera per take by design: all 8
+views of a grasp are related by a rigid transform, so their rigid shares are
+identical and including them would multiply apparent n by 8 while adding no
+information.
+
+> **The joint-order guard earned its keep here.** DexYCB's `joint_3d` arrives
+> in MediaPipe order, not MANO, because `manopth` reorders internally before
+> dex-ycb-toolkit ever sees it. Loading it under the MANO assumption scores
+> **16.5%** on the anatomical check against **88.4%** for the correct one — and
+> would have produced a plausible-looking rotation share computed over an
+> arbitrary subset of samples. See `scripts/load_public_hands.py`.
+
 ### 2.27 Probe paper sweep — three gaps closed, and §2.19e was a k=8 artifact
 
 12 runs, completed 2026-08-03 03:25, 0 errors.
