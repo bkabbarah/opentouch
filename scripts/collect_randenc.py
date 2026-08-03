@@ -25,6 +25,11 @@ import os
 import re
 
 ARMS = ["frz", "frzshuf", "rndfrz", "rndfrzshuf", "pose"]
+
+# The training logs print this metric with 6 decimal places, so each value
+# carries +/- 5e-7 of rounding. At k=2 the MSEs are ~4e-5, i.e. TWO significant
+# figures, and a 1e-6 gap between two arms is not a finding.
+LOG_PRECISION = 5e-7
 _RIGID = re.compile(r"\[rigid\].*?moving mse_fingertips:\s*([0-9.eE+-]+)"
                     r"\s+copy_baseline:\s*([0-9.eE+-]+)")
 
@@ -67,13 +72,29 @@ def main():
         if not missing:
             frz = got["frz"]["moving_mse_fingertips"]
             rnd = got["rndfrz"]["moving_mse_fingertips"]
+            shuf = got["frzshuf"]["moving_mse_fingertips"]
+            rshuf = got["rndfrzshuf"]["moving_mse_fingertips"]
+            pose = got["pose"]["moving_mse_fingertips"]
+            cap_pre, cap_rnd = pct(frz, shuf), pct(rnd, rshuf)
+            pose_pre, pose_rnd = pct(frz, pose), pct(rnd, pose)
             entry["contrasts"] = {
-                "pretrained_vs_its_shuffled_pct": pct(frz, got["frzshuf"]["moving_mse_fingertips"]),
-                "random_vs_its_shuffled_pct": pct(rnd, got["rndfrzshuf"]["moving_mse_fingertips"]),
-                "pretrained_vs_pose_pct": pct(frz, got["pose"]["moving_mse_fingertips"]),
-                "random_vs_pose_pct": pct(rnd, got["pose"]["moving_mse_fingertips"]),
+                "pretrained_vs_its_shuffled_pct": cap_pre,
+                "random_vs_its_shuffled_pct": cap_rnd,
+                "pretrained_vs_pose_pct": pose_pre,
+                "random_vs_pose_pct": pose_rnd,
+                # 2.22's rule: never read the capacity-matched gap without the
+                # branch cost. A shuffled control that is itself worse than
+                # pose-only inflates its own arm's capacity-matched gap.
+                "pretrained_branch_cost_pct": pct(shuf, pose),
+                "random_branch_cost_pct": pct(rshuf, pose),
+                "capacity_matched_favours": "pretrained" if cap_pre < cap_rnd else "random",
+                "vs_pose_favours": "pretrained" if pose_pre < pose_rnd else "random",
+                "contrasts_agree": (cap_pre < cap_rnd) == (pose_pre < pose_rnd),
+                # The logs carry 6 decimals. At k=2 that is two significant
+                # figures, so a 1e-6 difference on a 4e-5 value is not a
+                # finding. Report resolvability instead of asserting a winner.
+                "resolvable_at_logged_precision": abs(rnd - frz) > 2 * LOG_PRECISION,
                 "random_minus_pretrained_mse": rnd - frz,
-                "random_beats_pretrained": rnd < frz,
             }
         report["horizons"][str(k)] = entry
 
@@ -88,18 +109,37 @@ def main():
         print("%-5s %12.6f %12.6f %12.6f %12.6f %12.6f"
               % (k, *[e["runs"][a]["moving_mse_fingertips"] for a in ARMS]))
 
-    print("\n%-5s %22s %22s %18s" % ("k", "pretrained vs shuf", "random vs shuf", "random beats pre?"))
+    print("\n=== THE TWO CONTRASTS, WHICH DO NOT AGREE ===")
+    print("%-5s %28s %28s %8s"
+          % ("k", "capacity-matched (own shuf)", "vs pose-only", "agree?"))
     for k, e in report["horizons"].items():
         if e["missing"]:
             continue
         c = e["contrasts"]
-        print("%-5s %21.2f%% %21.2f%% %18s"
+        print("%-5s  pre %+7.2f%% rnd %+7.2f%% -> %-9s  pre %+7.2f%% rnd %+7.2f%% -> %-9s %s"
               % (k, c["pretrained_vs_its_shuffled_pct"], c["random_vs_its_shuffled_pct"],
-                 "YES" if c["random_beats_pretrained"] else "no"))
+                 c["capacity_matched_favours"], c["pretrained_vs_pose_pct"],
+                 c["random_vs_pose_pct"], c["vs_pose_favours"],
+                 "yes" if c["contrasts_agree"] else "NO"))
 
-    print("\nCompare against k=8 (HANDOFF 2.19d): random 0.000261 beat "
-          "pretrained 0.000270.\nIf 'random beats pre?' is 'no' at k=2 and k=4, "
-          "2.19d was horizon-specific\nand contribution 2 must be reworded.")
+    print("\n=== WHY: the two shuffled controls are not equivalent ===")
+    print("%-5s %26s %26s" % ("k", "pretrained shuf vs pose", "random shuf vs pose"))
+    for k, e in report["horizons"].items():
+        if e["missing"]:
+            continue
+        c = e["contrasts"]
+        print("%-5s %25.2f%% %25.2f%%"
+              % (k, c["pretrained_branch_cost_pct"], c["random_branch_cost_pct"]))
+    print("A shuffled control that is itself worse than pose-only inflates its")
+    print("own arm's capacity-matched gap (HANDOFF 2.22, the FiLM trap).")
+
+    print("\n=== resolvable at the logged precision (6 dp)? ===")
+    for k, e in report["horizons"].items():
+        if e["missing"]:
+            continue
+        c = e["contrasts"]
+        print("  k=%-3s %s" % (k, "yes" if c["resolvable_at_logged_precision"]
+                               else "NO -- difference is inside rounding"))
 
     with open(args.out, "w") as fh:
         json.dump(report, fh, indent=2)

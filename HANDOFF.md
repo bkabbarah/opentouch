@@ -980,6 +980,72 @@ it is the conservative one — and state that restricting to above-median motion
 raises it to 98.0% (OpenTouch) and 94.0% (DexYCB). Pre-empting this beats
 having it raised in review, and the answer runs in your favour.
 
+### 2.31 The delta-MSE instrument cannot answer the random-encoder question
+
+`results/results_randenc_horizons.json`, `scripts/randenc_horizons.sh`.
+10 runs, 0 errors, completed 2026-08-03 17:12. Protocol copied from
+`logs/rnd_frz_k8/params.txt`; the collector was validated against §2.19d's
+three published figures (0.000261 / 0.000292 / 0.000270) before the sweep ran.
+
+**The question.** §2.19d says a randomly-initialised frozen tactile encoder
+*beats* the pretrained one on forecasting — the second leg of contribution 2.
+It is k=8, one seed. Does it hold at other horizons?
+
+**The answer is that this instrument cannot say.** The two contrasts disagree:
+
+| k | capacity-matched (vs own shuffled) | vs pose-only |
+|---|---|---|
+| 2 | pre −15.22% / rnd −6.98% → **pretrained** | pre −9.30% / rnd −6.98% → **pretrained** |
+| 4 | pre −16.67% / rnd −12.98% → **pretrained** | pre −12.88% / rnd −13.64% → *random* |
+| 8 | pre −14.56% / rnd −10.62% → **pretrained** | pre −6.90% / rnd −10.00% → *random* |
+
+§2.19d read the right-hand column. The left-hand column says the opposite at
+every horizon, including k=8.
+
+**Why they disagree — and it is the trap §2.22 already records.** The two
+shuffled controls are not equivalent:
+
+| k | pretrained shuffled vs pose-only | random shuffled vs pose-only |
+|---|---|---|
+| 2 | **+6.98%** | 0.00% |
+| 4 | **+4.55%** | −0.76% |
+| 8 | **+8.97%** | +0.69% |
+
+Deranging a *pretrained* encoder's input costs 4.6–9.0% against pose-only;
+deranging a *random* encoder's input costs nothing. So the pretrained arm's
+capacity-matched gap is partly its own control being bad, not its real arm
+being good. §2.22's rule is *"read frz-vs-frzshuf together with
+frzshuf-vs-pose, never alone"* — that rule invalidates the comparison
+§2.19d is built on.
+
+**Precision compounds it.** The logs print 6 decimals. At k=2 the MSEs are
+~4e-5, i.e. two significant figures:
+
+| k | random vs pretrained, absolute |
+|---|---|
+| 2 | resolved — pretrained better |
+| 4 | **inside rounding, not resolvable** |
+| 8 | resolved — random better |
+
+**Conclusion.** Neither §2.19d's claim nor its reversal is supported. This is
+what a low-power instrument on a near-unpredictable target looks like:
+contradictory contrasts, differences inside logging precision, and controls
+that behave differently between arms. **Do not cite §2.19d, and do not cite
+this section as a reversal of it.** The honest statement is that the
+delta-forecasting line cannot resolve whether the learned representation
+matters, and contribution 2 must not be founded on it.
+
+> **This does not touch §2.27.** That is the *probe*, scored by AUC, three
+> encoder seeds, one consistent contrast. Its finding — the learned
+> representation contributes ~55% of the marginal at k=2/k=4 and washes out by
+> k=8 — stands on its own evidence. It simply has no MSE corroboration,
+> because there is nothing coherent in the MSE line to corroborate with.
+
+**What replaces it.** `scripts/aperture_randenc.sh` runs the same control on
+grip aperture — AUC and R² on a scalar with a real sign, four horizons, four
+partitions, each encoder with its own shuffled control. That is the test that
+can settle contribution 2.
+
 ### 2.30 HO-3D — third dataset, and it is the weakest of the three
 
 `results/results_rotation_share_ho3d_clean.json`,

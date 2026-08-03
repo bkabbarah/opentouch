@@ -161,16 +161,27 @@ the encoder ladder does not merely fail to improve, it **degrades** — mAP
 improves 2.6x (10.81 → 28.24) while the forecasting gain goes −8.97% → −6.90%
 (`results_encoder_ladder.json`).
 
-> **RISK 1, and it is the one to resolve first.** The second leg of this
-> contribution is "a random frozen encoder beats the pretrained one on
-> forecasting" (§2.19d) — **k=8, one seed**. §2.27 has just shown that the
-> *probe* version of exactly this claim was a **k=8 artifact**: at k=2 and k=4
-> the pretrained encoder gives roughly twice the marginal of a random one,
-> 7–9 encoder-seed sd outside noise, and k=8 is the single horizon where they
-> coincide. There is no reason to assume the forecasting version behaves
-> differently. **Run the forecasting random-encoder control at k=2 and k=4
-> before building a paper on this.** If it moves the same way, contribution 2
-> is horizon-specific and must be reworded, not withdrawn.
+> **RISK 1 — RESOLVED 2026-08-03, and worse than expected. See §2.31.** The
+> second leg of this contribution was "a random frozen encoder beats the
+> pretrained one on forecasting" (§2.19d), k=8, one seed. It was run at k=2
+> and k=4. **The delta-MSE instrument cannot answer the question at all**: its
+> two contrasts disagree at k=4 and k=8 (capacity-matched favours pretrained
+> at every horizon; vs-pose-only favours random at k=4 and k=8), the two
+> shuffled controls are not equivalent — deranging a pretrained encoder's
+> input costs 4.6–9.0% against pose-only while deranging a random one's costs
+> nothing, which is exactly §2.22's FiLM trap — and at k=4 the difference sits
+> inside the logs' 6-decimal rounding.
+>
+> **Neither §2.19d nor a reversal of it is supported.** Do not cite either.
+> Contribution 2's second leg currently has no usable evidence, and its first
+> leg (the encoder ladder, §2.19c) is the same instrument on the same target.
+>
+> **This is a live threat to contribution 2 as a whole.** What can settle it
+> is `scripts/aperture_randenc.sh` — the same control on grip aperture, scored
+> by AUC on a scalar with a real sign, 4 horizons x 4 partitions, each encoder
+> with its own shuffled control. Running as of 2026-08-03 17:11. If that shows
+> no gap either, **drop contribution 2** and stand on contribution 1 plus the
+> aperture result, both of which are unaffected.
 
 **Correspondingly, the "no method novelty" verdict is now wrong as stated.**
 §2.19e concluded the learned representation is not what makes touch

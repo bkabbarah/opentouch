@@ -1,0 +1,82 @@
+{
+  "metric": "moving mse_fingertips on the rigid (corrected) target",
+  "protocol": "scene-disjoint, split_seed 42, 300 epochs, seed 1",
+  "horizons": {
+    "2": {
+      "runs": {
+        "frz": {
+          "run": "rh2_frz",
+          "moving_mse_fingertips": 3.9e-05,
+          "copy_baseline": 4.5e-05
+        },
+        "frzshuf": {
+          "run": "rh2_frzshuf",
+          "moving_mse_fingertips": 4.6e-05,
+          "copy_baseline": 4.5e-05
+        },
+        "rndfrz": {
+          "run": "rh2_rndfrz",
+          "moving_mse_fingertips": 4e-05,
+          "copy_baseline": 4.5e-05
+        },
+        "rndfrzshuf": {
+          "run": "rh2_rndfrzshuf",
+          "moving_mse_fingertips": 4.3e-05,
+          "copy_baseline": 4.5e-05
+        },
+        "pose": {
+          "run": "rh2_pose",
+          "moving_mse_fingertips": 4.3e-05,
+          "copy_baseline": 4.5e-05
+        }
+      },
+      "missing": [],
+      "contrasts": {
+        "pretrained_vs_its_shuffled_pct": -15.217391304347828,
+        "random_vs_its_shuffled_pct": -6.976744186046507,
+        "pretrained_vs_pose_pct": -9.302325581395355,
+        "random_vs_pose_pct": -6.976744186046507,
+        "random_minus_pretrained_mse": 1.000000000000004e-06,
+        "random_beats_pretrained": false
+      }
+    },
+    "4": {
+      "runs": {
+        "frz": {
+          "run": "rh4_frz",
+          "moving_mse_fingertips": 0.000115,
+          "copy_baseline": 0.000134
+        },
+        "frzshuf": {
+          "run": "rh4_frzshuf",
+          "moving_mse_fingertips": 0.000138,
+          "copy_baseline": 0.000134
+        },
+        "rndfrz": {
+          "run": "rh4_rndfrz",
+          "moving_mse_fingertips": 0.000114,
+          "copy_baseline": 0.000134
+        },
+        "rndfrzshuf": {
+          "run": "rh4_rndfrzshuf",
+          "moving_mse_fingertips": 0.000131,
+          "copy_baseline": 0.000134
+        },
+        "pose": {
+          "run": "rh4_pose",
+          "moving_mse_fingertips": 0.000132,
+          "copy_baseline": 0.000134
+        }
+      },
+      "missing": [],
+      "contrasts": {
+        "pretrained_vs_its_shuffled_pct": -16.66666666666666,
+        "random_vs_its_shuffled_pct": -12.977099236641225,
+        "pretrained_vs_pose_pct": -12.878787878787882,
+        "random_vs_pose_pct": -13.636363636363638,
+        "random_minus_pretrained_mse": -9.999999999999972e-07,
+        "random_beats_pretrained": true
+      }
+    }
+  }
+}
