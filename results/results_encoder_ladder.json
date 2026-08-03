@@ -1,0 +1,75 @@
+{
+  "partition": "split_seed 42, scene-disjoint",
+  "horizon_k": 8,
+  "pose_only_mse": 0.00029,
+  "rungs": [
+    {
+      "encoder_epoch": 20,
+      "encoder_map": 10.81,
+      "frz_mse": 0.000264,
+      "frzshuf_mse": 0.000309,
+      "copy_zero_mse": 0.000319,
+      "frz_vs_frzshuf_pct": -14.563106796116493,
+      "frz_vs_pose_pct": -8.965517241379303
+    },
+    {
+      "encoder_epoch": 40,
+      "encoder_map": 16.07,
+      "frz_mse": 0.000265,
+      "frzshuf_mse": 0.000312,
+      "copy_zero_mse": 0.000319,
+      "frz_vs_frzshuf_pct": -15.064102564102566,
+      "frz_vs_pose_pct": -8.620689655172416
+    },
+    {
+      "encoder_epoch": 60,
+      "encoder_map": 20.26,
+      "frz_mse": 0.000269,
+      "frzshuf_mse": 0.000313,
+      "copy_zero_mse": 0.000319,
+      "frz_vs_frzshuf_pct": -14.057507987220458,
+      "frz_vs_pose_pct": -7.241379310344835
+    },
+    {
+      "encoder_epoch": 100,
+      "encoder_map": 25.19,
+      "frz_mse": 0.000274,
+      "frzshuf_mse": 0.000308,
+      "copy_zero_mse": 0.000319,
+      "frz_vs_frzshuf_pct": -11.038961038961043,
+      "frz_vs_pose_pct": -5.517241379310348
+    },
+    {
+      "encoder_epoch": 300,
+      "encoder_map": 28.24,
+      "frz_mse": 0.00027,
+      "frzshuf_mse": 0.000317,
+      "copy_zero_mse": 0.000319,
+      "frz_vs_frzshuf_pct": -14.826498422712936,
+      "frz_vs_pose_pct": -6.896551724137931
+    }
+  ],
+  "pearson_r_map_vs_gain": 0.3880523636456527,
+  "split_seed_observed": [
+    [
+      "seed 1",
+      24.29,
+      -5.77
+    ],
+    [
+      "seed 2",
+      20.78,
+      -10.03
+    ],
+    [
+      "seed 3",
+      18.74,
+      5.02
+    ],
+    [
+      "seed 42",
+      28.24,
+      -14.96
+    ]
+  ]
+}

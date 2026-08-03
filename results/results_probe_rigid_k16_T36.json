@@ -1,0 +1,75 @@
+{
+  "horizon_k": 16,
+  "sequence_length": 36,
+  "n_val_moving": 6626,
+  "results": {
+    "wrist_translation_removed": {
+      "tactile": {
+        "x": 0.516658821687053,
+        "y": 0.6048239093597259,
+        "z": 0.5077901888591205
+      },
+      "shuffled_tactile": {
+        "x": 0.4900236010373721,
+        "y": 0.5081444161539282,
+        "z": 0.5028999525997978
+      },
+      "pose_emb_causal": {
+        "x": 0.5960100330732664,
+        "y": 0.6458932771284991,
+        "z": 0.6223649733065655
+      },
+      "pose_emb_plus_tactile": {
+        "x": 0.5876632093646658,
+        "y": 0.6459667839813987,
+        "z": 0.6191486865630949
+      },
+      "pose_emb_plus_shuffled": {
+        "x": 0.5864456952352458,
+        "y": 0.6420804556192445,
+        "z": 0.608794511045563
+      },
+      "_summary": {
+        "best_axis": "y",
+        "tactile_alone": 0.6048239093597259,
+        "shuffled_alone": 0.5081444161539282,
+        "marginal_over_matched_pose": 7.350685289964076e-05,
+        "shuffled_marginal": -0.003812821509254549
+      }
+    },
+    "rigid_removed_handframe": {
+      "tactile": {
+        "long": 0.6897314606905126,
+        "flex": 0.6375568020405608,
+        "normal": 0.6723270719732527
+      },
+      "shuffled_tactile": {
+        "long": 0.49628358928713767,
+        "flex": 0.49941306972665284,
+        "normal": 0.49564367852575986
+      },
+      "pose_emb_causal": {
+        "long": 0.6863248586503895,
+        "flex": 0.6387361618245369,
+        "normal": 0.6702998434723986
+      },
+      "pose_emb_plus_tactile": {
+        "long": 0.6994907210388946,
+        "flex": 0.6501799105635221,
+        "normal": 0.6900850106008005
+      },
+      "pose_emb_plus_shuffled": {
+        "long": 0.6833935842101969,
+        "flex": 0.6329289071424741,
+        "normal": 0.6646534191752785
+      },
+      "_summary": {
+        "best_axis": "long",
+        "tactile_alone": 0.6897314606905126,
+        "shuffled_alone": 0.49628358928713767,
+        "marginal_over_matched_pose": 0.013165862388505145,
+        "shuffled_marginal": -0.0029312744401925883
+      }
+    }
+  }
+}

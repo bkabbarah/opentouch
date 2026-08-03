@@ -1,0 +1,77 @@
+{
+  "horizon_k": 8,
+  "sequence_length": 36,
+  "split_group_by": "clip",
+  "checkpoint": "logs/2026_07_06-22_36_12-model_OpenTouch-DINOv3-B16-Retrieval-lr_0.0001-b_256-j_8-p_amp/checkpoints/epoch_latest.pt",
+  "n_val_moving": 11425,
+  "results": {
+    "wrist_translation_removed": {
+      "tactile": {
+        "x": 0.5047272180937928,
+        "y": 0.599818426935139,
+        "z": 0.5007614333727084
+      },
+      "shuffled_tactile": {
+        "x": 0.5181710106740749,
+        "y": 0.5023227282359901,
+        "z": 0.500545772697384
+      },
+      "pose_emb_causal": {
+        "x": 0.5838876392230168,
+        "y": 0.626267057189977,
+        "z": 0.5871341035181793
+      },
+      "pose_emb_plus_tactile": {
+        "x": 0.5823534152642815,
+        "y": 0.6278617330501535,
+        "z": 0.5836770238555421
+      },
+      "pose_emb_plus_shuffled": {
+        "x": 0.5854016846478318,
+        "y": 0.623196499552673,
+        "z": 0.5772037261635953
+      },
+      "_summary": {
+        "best_axis": "y",
+        "tactile_alone": 0.599818426935139,
+        "shuffled_alone": 0.5023227282359901,
+        "marginal_over_matched_pose": 0.0015946758601764754,
+        "shuffled_marginal": -0.0030705576373040167
+      }
+    },
+    "rigid_removed_handframe": {
+      "tactile": {
+        "long": 0.6614118281955808,
+        "flex": 0.6072709815062948,
+        "normal": 0.6400654315726244
+      },
+      "shuffled_tactile": {
+        "long": 0.49756559860302313,
+        "flex": 0.5061953680295677,
+        "normal": 0.5006382744720982
+      },
+      "pose_emb_causal": {
+        "long": 0.6582517663707936,
+        "flex": 0.6176483790928495,
+        "normal": 0.6446589804598717
+      },
+      "pose_emb_plus_tactile": {
+        "long": 0.670221852648121,
+        "flex": 0.6245353611600326,
+        "normal": 0.657827750592833
+      },
+      "pose_emb_plus_shuffled": {
+        "long": 0.6546486968841754,
+        "flex": 0.6157978818849337,
+        "normal": 0.6419335626651026
+      },
+      "_summary": {
+        "best_axis": "long",
+        "tactile_alone": 0.6614118281955808,
+        "shuffled_alone": 0.49756559860302313,
+        "marginal_over_matched_pose": 0.011970086277327319,
+        "shuffled_marginal": -0.00360306948661826
+      }
+    }
+  }
+}

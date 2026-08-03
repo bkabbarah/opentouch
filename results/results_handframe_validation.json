@@ -1,0 +1,28 @@
+{
+  "geometry": {
+    "energy_share_long_flex_normal": [
+      0.32162341475486755,
+      0.06654899567365646,
+      0.6118276119232178
+    ],
+    "mean_flex_component_of_tip_minus_mcp": -0.010627973824739456
+  },
+  "motion_corr_long_flex_normal": [
+    0.9914977005658792,
+    -0.7399763844535289,
+    0.8119516147533103
+  ],
+  "spread_corr_long_flex_normal": [
+    0.5322056784839486,
+    0.6946696978736366,
+    -0.4112749936071942
+  ],
+  "curl_behaves_like_a_flexion_axis": true,
+  "spread_behaves_like_an_abduction_axis": true,
+  "labels_behave_anatomically": true,
+  "axis_display_names": {
+    "long": "radial",
+    "flex": "spread",
+    "normal": "curl"
+  }
+}

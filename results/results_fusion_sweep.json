@@ -1,0 +1,19 @@
+{
+  "copy_zero_mse": 0.000319,
+  "pose_only_mse": 0.00029,
+  "means": {
+    "film_frz": 0.000276,
+    "film_frzshuf": 0.00034366666666666665,
+    "gate_frz": 0.0002703333333333333,
+    "gate_frzshuf": 0.00031766666666666667
+  },
+  "contrasts": {
+    "film_frz_vs_frzshuf": -19.68962172647915,
+    "film_frz_vs_pose": -4.827586206896557,
+    "film_frzshuf_vs_pose": 18.505747126436773,
+    "gate_frz_vs_frzshuf": -14.90031479538301,
+    "gate_frz_vs_pose": -6.781609195402308,
+    "gate_frzshuf_vs_pose": 9.540229885057473,
+    "film_vs_gate_frz": 2.0961775585696714
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "horizon_k": 8,
+  "lags": [
+    0,
+    1,
+    2,
+    3,
+    5,
+    8,
+    12,
+    19
+  ],
+  "split_group_by": "clip",
+  "random_tactile_encoder": true,
+  "n_val_moving": 11425,
+  "n_clusters": 295,
+  "axes": {
+    "radial": {
+      "auc_mean": {
+        "pose_emb": 0.6544915362443653,
+        "pose_raw": 0.6469283759811566,
+        "pose_raw_plus_tactile": 0.6660774607109062,
+        "pose_raw_plus_shuffled": 0.6409595219640409
+      },
+      "vs_raw_pose": {
+        "mean_delta": 0.019149084729749615,
+        "mean_ci_low": 0.004708111858184797,
+        "mean_ci_high": 0.035432379034394966,
+        "n_joints_ci_excludes_zero": 14,
+        "n_joints": 20
+      },
+      "vs_shuffled": {
+        "mean_delta": 0.025117938746865277,
+        "mean_ci_low": 0.008874525675293723,
+        "mean_ci_high": 0.044101463409440225,
+        "n_joints_ci_excludes_zero": 15,
+        "n_joints": 20
+      }
+    },
+    "spread": {
+      "auc_mean": {
+        "pose_emb": 0.6089995528964194,
+        "pose_raw": 0.6222287723741273,
+        "pose_raw_plus_tactile": 0.6303413746290502,
+        "pose_raw_plus_shuffled": 0.6207900482831838
+      },
+      "vs_raw_pose": {
+        "mean_delta": 0.008112602254922757,
+        "mean_ci_low": -0.002385268199116995,
+        "mean_ci_high": 0.018662586103942523,
+        "n_joints_ci_excludes_zero": 9,
+        "n_joints": 20
+      },
+      "vs_shuffled": {
+        "mean_delta": 0.009551326345866284,
+        "mean_ci_low": -0.0027630986996827612,
+        "mean_ci_high": 0.02186957751405082,
+        "n_joints_ci_excludes_zero": 8,
+        "n_joints": 20
+      }
+    },
+    "curl": {
+      "auc_mean": {
+        "pose_emb": 0.6388478875897283,
+        "pose_raw": 0.6199636385930883,
+        "pose_raw_plus_tactile": 0.6401962538027894,
+        "pose_raw_plus_shuffled": 0.6175282223691247
+      },
+      "vs_raw_pose": {
+        "mean_delta": 0.020232615209701127,
+        "mean_ci_low": 0.008459583428762121,
+        "mean_ci_high": 0.032711915314339195,
+        "n_joints_ci_excludes_zero": 16,
+        "n_joints": 20
+      },
+      "vs_shuffled": {
+        "mean_delta": 0.022668031433664616,
+        "mean_ci_low": 0.0093225394865963,
+        "mean_ci_high": 0.03650299142256375,
+        "n_joints_ci_excludes_zero": 18,
+        "n_joints": 20
+      }
+    }
+  },
+  "non_converged_fits": {}
+}

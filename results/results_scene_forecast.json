@@ -1,0 +1,339 @@
+{
+  "experiment": "participant-disjoint frozen-encoder forecasting (HANDOFF open #1)",
+  "split_group_by": "scene",
+  "encoder": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+  "n_runs": 18,
+  "summary": {
+    "frz_k16": {
+      "arm": "frz",
+      "horizon_k": 16,
+      "n_seeds": 3,
+      "mean": 0.0004996666666666667,
+      "std": 3.055050463303861e-06,
+      "values": [
+        0.000497,
+        0.000499,
+        0.000503
+      ]
+    },
+    "frz_k8": {
+      "arm": "frz",
+      "horizon_k": 8,
+      "n_seeds": 3,
+      "mean": 0.00026966666666666664,
+      "std": 5.773502691896398e-07,
+      "values": [
+        0.000269,
+        0.00027,
+        0.00027
+      ]
+    },
+    "frzshuf_k16": {
+      "arm": "frzshuf",
+      "horizon_k": 16,
+      "n_seeds": 3,
+      "mean": 0.0005876666666666667,
+      "std": 4.725815626252601e-06,
+      "values": [
+        0.000584,
+        0.000586,
+        0.000593
+      ]
+    },
+    "frzshuf_k8": {
+      "arm": "frzshuf",
+      "horizon_k": 8,
+      "n_seeds": 3,
+      "mean": 0.0003173333333333333,
+      "std": 3.214550253664315e-06,
+      "values": [
+        0.000315,
+        0.000316,
+        0.000321
+      ]
+    },
+    "pose_k16": {
+      "arm": "pose",
+      "horizon_k": 16,
+      "n_seeds": 3,
+      "mean": 0.0005153333333333334,
+      "std": 4.725815626252601e-06,
+      "values": [
+        0.00051,
+        0.000517,
+        0.000519
+      ]
+    },
+    "pose_k8": {
+      "arm": "pose",
+      "horizon_k": 8,
+      "n_seeds": 3,
+      "mean": 0.00029,
+      "std": 1.0000000000000243e-06,
+      "values": [
+        0.000289,
+        0.00029,
+        0.000291
+      ]
+    }
+  },
+  "comparisons_pct": {
+    "frz_vs_pose_k8": -7.011494252873572,
+    "frz_vs_frzshuf_k8": -15.021008403361346,
+    "frz_vs_copy_k8": -15.46499477533961,
+    "frzshuf_vs_pose_k8": 9.425287356321832,
+    "frz_vs_pose_k16": -3.040103492884861,
+    "frz_vs_frzshuf_k16": -14.974475326148607,
+    "frz_vs_copy_k16": -19.667738478027868,
+    "frzshuf_vs_pose_k16": 14.036222509702457
+  },
+  "copy_baseline_by_k": {
+    "16": 0.000622,
+    "8": 0.000319
+  },
+  "motion_threshold_by_k": {
+    "16": [
+      0.024002945051
+    ],
+    "8": [
+      0.01397662051
+    ]
+  },
+  "integrity_problems": [],
+  "runs": {
+    "sf_frz_k16_s1": {
+      "mse": 0.000503,
+      "copy": 0.000622,
+      "threshold": 0.02400294505059719,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "frz",
+      "k": 16,
+      "seed": 1,
+      "name": "sf_frz_k16_s1"
+    },
+    "sf_frz_k16_s2": {
+      "mse": 0.000497,
+      "copy": 0.000622,
+      "threshold": 0.02400294505059719,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "frz",
+      "k": 16,
+      "seed": 2,
+      "name": "sf_frz_k16_s2"
+    },
+    "sf_frz_k16_s3": {
+      "mse": 0.000499,
+      "copy": 0.000622,
+      "threshold": 0.02400294505059719,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "frz",
+      "k": 16,
+      "seed": 3,
+      "name": "sf_frz_k16_s3"
+    },
+    "sf_frz_k8_s1": {
+      "mse": 0.00027,
+      "copy": 0.000319,
+      "threshold": 0.013976620510220528,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "frz",
+      "k": 8,
+      "seed": 1,
+      "name": "sf_frz_k8_s1"
+    },
+    "sf_frz_k8_s2": {
+      "mse": 0.00027,
+      "copy": 0.000319,
+      "threshold": 0.013976620510220528,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "frz",
+      "k": 8,
+      "seed": 2,
+      "name": "sf_frz_k8_s2"
+    },
+    "sf_frz_k8_s3": {
+      "mse": 0.000269,
+      "copy": 0.000319,
+      "threshold": 0.013976620510220528,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "frz",
+      "k": 8,
+      "seed": 3,
+      "name": "sf_frz_k8_s3"
+    },
+    "sf_frzshuf_k16_s1": {
+      "mse": 0.000593,
+      "copy": 0.000622,
+      "threshold": 0.02400294505059719,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "frzshuf",
+      "k": 16,
+      "seed": 1,
+      "name": "sf_frzshuf_k16_s1"
+    },
+    "sf_frzshuf_k16_s2": {
+      "mse": 0.000584,
+      "copy": 0.000622,
+      "threshold": 0.02400294505059719,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "frzshuf",
+      "k": 16,
+      "seed": 2,
+      "name": "sf_frzshuf_k16_s2"
+    },
+    "sf_frzshuf_k16_s3": {
+      "mse": 0.000586,
+      "copy": 0.000622,
+      "threshold": 0.02400294505059719,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "frzshuf",
+      "k": 16,
+      "seed": 3,
+      "name": "sf_frzshuf_k16_s3"
+    },
+    "sf_frzshuf_k8_s1": {
+      "mse": 0.000316,
+      "copy": 0.000319,
+      "threshold": 0.013976620510220528,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "frzshuf",
+      "k": 8,
+      "seed": 1,
+      "name": "sf_frzshuf_k8_s1"
+    },
+    "sf_frzshuf_k8_s2": {
+      "mse": 0.000315,
+      "copy": 0.000319,
+      "threshold": 0.013976620510220528,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "frzshuf",
+      "k": 8,
+      "seed": 2,
+      "name": "sf_frzshuf_k8_s2"
+    },
+    "sf_frzshuf_k8_s3": {
+      "mse": 0.000321,
+      "copy": 0.000319,
+      "threshold": 0.013976620510220528,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "logs/p2t_scene_gru/checkpoints/epoch_300.pt",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "frzshuf",
+      "k": 8,
+      "seed": 3,
+      "name": "sf_frzshuf_k8_s3"
+    },
+    "sf_pose_k16_s1": {
+      "mse": 0.000519,
+      "copy": 0.000622,
+      "threshold": 0.02400294505059719,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "None",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "pose",
+      "k": 16,
+      "seed": 1,
+      "name": "sf_pose_k16_s1"
+    },
+    "sf_pose_k16_s2": {
+      "mse": 0.000517,
+      "copy": 0.000622,
+      "threshold": 0.02400294505059719,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "None",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "pose",
+      "k": 16,
+      "seed": 2,
+      "name": "sf_pose_k16_s2"
+    },
+    "sf_pose_k16_s3": {
+      "mse": 0.00051,
+      "copy": 0.000622,
+      "threshold": 0.02400294505059719,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "None",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "pose",
+      "k": 16,
+      "seed": 3,
+      "name": "sf_pose_k16_s3"
+    },
+    "sf_pose_k8_s1": {
+      "mse": 0.00029,
+      "copy": 0.000319,
+      "threshold": 0.013976620510220528,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "None",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "pose",
+      "k": 8,
+      "seed": 1,
+      "name": "sf_pose_k8_s1"
+    },
+    "sf_pose_k8_s2": {
+      "mse": 0.000289,
+      "copy": 0.000319,
+      "threshold": 0.013976620510220528,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "None",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "pose",
+      "k": 8,
+      "seed": 2,
+      "name": "sf_pose_k8_s2"
+    },
+    "sf_pose_k8_s3": {
+      "mse": 0.000291,
+      "copy": 0.000319,
+      "threshold": 0.013976620510220528,
+      "split_group_by": "scene",
+      "tactile_init_checkpoint": "None",
+      "trainable": null,
+      "epochs": "300",
+      "arm": "pose",
+      "k": 8,
+      "seed": 3,
+      "name": "sf_pose_k8_s3"
+    }
+  }
+}

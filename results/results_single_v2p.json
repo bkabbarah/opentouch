@@ -1,0 +1,11 @@
+{
+  "split": "test",
+  "visual_to_pose_recall@1": 0.12151536812008577,
+  "visual_to_pose_recall@5": 0.3059328091493924,
+  "visual_to_pose_recall@10": 0.4152966404574696,
+  "visual_to_pose_mAP": 0.21359820663928986,
+  "pose_to_visual_recall@1": 0.11079342387419586,
+  "pose_to_visual_recall@5": 0.3052180128663331,
+  "pose_to_visual_recall@10": 0.4124374553252323,
+  "pose_to_visual_mAP": 0.20931625366210938
+}

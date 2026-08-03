@@ -241,7 +241,9 @@ final_annotation.zip
 assets/B_matrices.npz
 assets/*.obj
 assets/MANO_RIGHT.pkl
-results_*.json
+# Anchored to the repo ROOT on purpose. Unanchored, this pattern also matches
+# results/results_*.json and would silently keep the tracked mirror empty.
+/results_*.json
 eval_output.txt
 worst_queries.csv
 

@@ -1,0 +1,58 @@
+{
+  "horizon_k": 8,
+  "target_variant": "rigid_removed_handframe",
+  "cluster_unit": "clip",
+  "n_boot": 1000,
+  "n_val_moving": 11425,
+  "n_clusters": 295,
+  "axes": {
+    "long": {
+      "vs_pose": {
+        "mean_delta": 0.01714447472476528,
+        "mean_ci_low": 0.0040071190532472555,
+        "mean_ci_high": 0.03143348349587415,
+        "n_joints_ci_excludes_zero": 17,
+        "n_joints": 20
+      },
+      "vs_shuffled": {
+        "mean_delta": 0.019493119348887665,
+        "mean_ci_low": 0.0055138562127214266,
+        "mean_ci_high": 0.034616604710105844,
+        "n_joints_ci_excludes_zero": 17,
+        "n_joints": 20
+      }
+    },
+    "flex": {
+      "vs_pose": {
+        "mean_delta": 0.01261769062656729,
+        "mean_ci_low": 0.0008688864292464099,
+        "mean_ci_high": 0.024490690331544846,
+        "n_joints_ci_excludes_zero": 12,
+        "n_joints": 20
+      },
+      "vs_shuffled": {
+        "mean_delta": 0.016096888202584574,
+        "mean_ci_low": 0.002165634343272433,
+        "mean_ci_high": 0.030005612019079954,
+        "n_joints_ci_excludes_zero": 15,
+        "n_joints": 20
+      }
+    },
+    "normal": {
+      "vs_pose": {
+        "mean_delta": 0.018669013936668553,
+        "mean_ci_low": 0.006358220846352273,
+        "mean_ci_high": 0.03108383729645725,
+        "n_joints_ci_excludes_zero": 17,
+        "n_joints": 20
+      },
+      "vs_shuffled": {
+        "mean_delta": 0.021524828050024213,
+        "mean_ci_low": 0.008160026925547804,
+        "mean_ci_high": 0.03536068042220693,
+        "n_joints_ci_excludes_zero": 17,
+        "n_joints": 20
+      }
+    }
+  }
+}

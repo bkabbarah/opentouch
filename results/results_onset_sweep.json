@@ -1,0 +1,14 @@
+{
+  "n_still": 3077,
+  "base_rate": 0.4628,
+  "auc_means": {
+    "frz": 0.5234,
+    "frzshuf": 0.5121333333333333,
+    "pose": 0.5117333333333334
+  },
+  "contrasts": {
+    "frz_minus_frzshuf": 0.011266666666666647,
+    "frz_minus_pose": 0.011666666666666603,
+    "frzshuf_minus_pose": 0.00039999999999995595
+  }
+}

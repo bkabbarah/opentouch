@@ -1,0 +1,11 @@
+{
+  "split": "val",
+  "pose_to_tactile_recall@1": 0.062340966921119595,
+  "pose_to_tactile_recall@5": 0.1984732824427481,
+  "pose_to_tactile_recall@10": 0.2907124681933842,
+  "pose_to_tactile_mAP": 0.13738767802715302,
+  "tactile_to_pose_recall@1": 0.05979643765903308,
+  "tactile_to_pose_recall@5": 0.19147582697201018,
+  "tactile_to_pose_recall@10": 0.2818066157760814,
+  "tactile_to_pose_mAP": 0.13321514427661896
+}

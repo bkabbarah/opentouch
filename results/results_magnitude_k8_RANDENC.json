@@ -1,0 +1,157 @@
+{
+  "horizon_k": 8,
+  "eval_split": "val",
+  "split_group_by": "clip",
+  "random_tactile_encoder": true,
+  "n_train": 116033,
+  "n_eval_moving": 11425,
+  "n_clusters": 295,
+  "joint_sets": {
+    "all_joints": {
+      "copy_zero_mse": 4.502040610532276e-05,
+      "conditions": {
+        "pose_emb": {
+          "mse": 3.839837775611427e-05,
+          "r2_vs_zero": 0.14708948501523111,
+          "alpha": 316.2277660168379,
+          "n_features": 64
+        },
+        "pose_emb_plus_tactile": {
+          "mse": 3.765739409185693e-05,
+          "r2_vs_zero": 0.16354832509152573,
+          "alpha": 100.0,
+          "n_features": 128
+        },
+        "pose_emb_plus_shuffled": {
+          "mse": 3.8473491798838296e-05,
+          "r2_vs_zero": 0.1454210406536165,
+          "alpha": 316.2277660168379,
+          "n_features": 128
+        },
+        "pose_raw": {
+          "mse": 3.9389155266048816e-05,
+          "r2_vs_zero": 0.12508218664442838,
+          "alpha": 0.31622776601683794,
+          "n_features": 504
+        },
+        "pose_raw_plus_tactile": {
+          "mse": 3.802873938380869e-05,
+          "r2_vs_zero": 0.1552999478760243,
+          "alpha": 1.0,
+          "n_features": 568
+        },
+        "pose_raw_plus_shuffled": {
+          "mse": 3.945130254421977e-05,
+          "r2_vs_zero": 0.12370176199820104,
+          "alpha": 0.31622776601683794,
+          "n_features": 568
+        },
+        "tactile_only": {
+          "mse": 4.0738834039572366e-05,
+          "r2_vs_zero": 0.09510291967899831,
+          "alpha": 31.622776601683793,
+          "n_features": 64
+        }
+      },
+      "touch_effect": {
+        "emb_vs_pose": {
+          "error_reduction": 7.409836642573576e-07,
+          "ci_low": 2.8082794173984824e-07,
+          "ci_high": 1.207379979895272e-06,
+          "relative_pct": 1.9297264821021471
+        },
+        "emb_vs_shuffled": {
+          "error_reduction": 8.160977069813542e-07,
+          "ci_low": 3.5098709302786843e-07,
+          "ci_high": 1.2876926681147326e-06,
+          "relative_pct": 2.1211947988718727
+        },
+        "raw_vs_pose": {
+          "error_reduction": 1.3604158822401113e-06,
+          "ci_low": 8.674702148169172e-07,
+          "ci_high": 1.8488903189621035e-06,
+          "relative_pct": 3.4537828319784043
+        },
+        "raw_vs_shuffled": {
+          "error_reduction": 1.4225631604110464e-06,
+          "ci_low": 9.313403206440103e-07,
+          "ci_high": 1.974748785311213e-06,
+          "relative_pct": 3.605871209997539
+        }
+      }
+    },
+    "fingertips": {
+      "copy_zero_mse": 0.0001040517890942283,
+      "conditions": {
+        "pose_emb": {
+          "mse": 8.945866948987521e-05,
+          "r2_vs_zero": 0.1402486178410416,
+          "alpha": 100.0,
+          "n_features": 64
+        },
+        "pose_emb_plus_tactile": {
+          "mse": 8.799141171267241e-05,
+          "r2_vs_zero": 0.15434984368228177,
+          "alpha": 100.0,
+          "n_features": 128
+        },
+        "pose_emb_plus_shuffled": {
+          "mse": 8.96402447069866e-05,
+          "r2_vs_zero": 0.13850357127632607,
+          "alpha": 316.2277660168379,
+          "n_features": 128
+        },
+        "pose_raw": {
+          "mse": 9.225982301583522e-05,
+          "r2_vs_zero": 0.11332785510986632,
+          "alpha": 1.0,
+          "n_features": 504
+        },
+        "pose_raw_plus_tactile": {
+          "mse": 8.925347670470088e-05,
+          "r2_vs_zero": 0.14222064337717644,
+          "alpha": 1.0,
+          "n_features": 568
+        },
+        "pose_raw_plus_shuffled": {
+          "mse": 9.242357847549418e-05,
+          "r2_vs_zero": 0.11175406708484092,
+          "alpha": 1.0,
+          "n_features": 568
+        },
+        "tactile_only": {
+          "mse": 9.476251815943963e-05,
+          "r2_vs_zero": 0.08927545615170918,
+          "alpha": 31.622776601683793,
+          "n_features": 64
+        }
+      },
+      "touch_effect": {
+        "emb_vs_pose": {
+          "error_reduction": 1.4672577772027864e-06,
+          "ci_low": 4.637328213862257e-07,
+          "ci_high": 2.4625604241726142e-06,
+          "relative_pct": 1.6401515756601417
+        },
+        "emb_vs_shuffled": {
+          "error_reduction": 1.6488329943141732e-06,
+          "ci_low": 6.466831857274096e-07,
+          "ci_high": 2.665636260154174e-06,
+          "relative_pct": 1.8393892159752916
+        },
+        "raw_vs_pose": {
+          "error_reduction": 3.0063463111343287e-06,
+          "ci_low": 1.889724396314019e-06,
+          "ci_high": 4.129347154925295e-06,
+          "relative_pct": 3.2585650100567904
+        },
+        "raw_vs_shuffled": {
+          "error_reduction": 3.170101770793275e-06,
+          "ci_low": 2.0682768003101228e-06,
+          "ci_high": 4.414095690535003e-06,
+          "relative_pct": 3.4299708181433566
+        }
+      }
+    }
+  }
+}

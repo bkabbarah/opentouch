@@ -1,0 +1,75 @@
+{
+  "horizon_k": 4,
+  "sequence_length": 36,
+  "n_val_moving": 14006,
+  "results": {
+    "wrist_translation_removed": {
+      "tactile": {
+        "x": 0.507032944629973,
+        "y": 0.582526451440275,
+        "z": 0.5011473012267823
+      },
+      "shuffled_tactile": {
+        "x": 0.5018660352454987,
+        "y": 0.504475741285397,
+        "z": 0.49785606922413866
+      },
+      "pose_emb_causal": {
+        "x": 0.5754121513901306,
+        "y": 0.6132282746650705,
+        "z": 0.5762446763847019
+      },
+      "pose_emb_plus_tactile": {
+        "x": 0.5722876425159067,
+        "y": 0.6167874190186846,
+        "z": 0.5768777091995669
+      },
+      "pose_emb_plus_shuffled": {
+        "x": 0.5718358410761245,
+        "y": 0.6118614917907269,
+        "z": 0.5694376913944783
+      },
+      "_summary": {
+        "best_axis": "y",
+        "tactile_alone": 0.582526451440275,
+        "shuffled_alone": 0.504475741285397,
+        "marginal_over_matched_pose": 0.003559144353614152,
+        "shuffled_marginal": -0.0013667828743435528
+      }
+    },
+    "rigid_removed_handframe": {
+      "tactile": {
+        "long": 0.650843927351597,
+        "flex": 0.5994831569762202,
+        "normal": 0.6260576271169971
+      },
+      "shuffled_tactile": {
+        "long": 0.5008338321963541,
+        "flex": 0.496556346684049,
+        "normal": 0.4989965352006894
+      },
+      "pose_emb_causal": {
+        "long": 0.648210397202335,
+        "flex": 0.6023461912272652,
+        "normal": 0.6277879172117221
+      },
+      "pose_emb_plus_tactile": {
+        "long": 0.6646169184870192,
+        "flex": 0.6154649100771901,
+        "normal": 0.6447019790412905
+      },
+      "pose_emb_plus_shuffled": {
+        "long": 0.6463756937449621,
+        "flex": 0.5993786741230233,
+        "normal": 0.6254250904039828
+      },
+      "_summary": {
+        "best_axis": "long",
+        "tactile_alone": 0.650843927351597,
+        "shuffled_alone": 0.5008338321963541,
+        "marginal_over_matched_pose": 0.016406521284684228,
+        "shuffled_marginal": -0.0018347034573729104
+      }
+    }
+  }
+}
