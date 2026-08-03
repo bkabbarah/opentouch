@@ -210,7 +210,7 @@ def load_ho3d(root, split="train", min_len=8, joint_order="mano", limit_seqs=Non
     if limit_seqs:
         seq_names = seq_names[:limit_seqs]
 
-    seqs, groups, n_missing, n_total = [], [], 0, 0
+    seqs, groups, n_missing, n_total, n_unnamed = [], [], 0, 0, 0
     for sname in seq_names:
         meta_dir = os.path.join(base, sname, "meta")
         if not os.path.isdir(meta_dir):
@@ -218,6 +218,16 @@ def load_ho3d(root, split="train", min_len=8, joint_order="mano", limit_seqs=Non
         frames = []
         for fn in sorted(os.listdir(meta_dir)):
             if not fn.endswith(".pkl"):
+                continue
+            # Frame index comes from the filename, which is how temporal order
+            # and gap detection work. Anything not named <int>.pkl is skipped
+            # rather than allowed to crash -- this runs after a 31.9 GB
+            # download, so it must not die on one stray file.
+            stem = os.path.splitext(fn)[0]
+            try:
+                frame_idx = int(stem)
+            except ValueError:
+                n_unnamed += 1
                 continue
             n_total += 1
             with open(os.path.join(meta_dir, fn), "rb") as fh:
@@ -230,13 +240,15 @@ def load_ho3d(root, split="train", min_len=8, joint_order="mano", limit_seqs=Non
             if j.shape != (21, 3) or not np.isfinite(j).all():
                 n_missing += 1
                 continue
-            frames.append((int(os.path.splitext(fn)[0]), j))
+            frames.append((frame_idx, j))
         for run in split_on_gaps(frames, min_len):
             seqs.append(reorder(run, joint_order))
             groups.append(sname)
 
     print("HO-3D: %d sequences kept from %d recordings (%d/%d frames lacked joints)"
           % (len(seqs), len(seq_names), n_missing, n_total))
+    if n_unnamed:
+        print("  note: skipped %d .pkl files not named <frame-index>.pkl" % n_unnamed)
     return seqs, groups
 
 

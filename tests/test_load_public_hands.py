@@ -169,6 +169,21 @@ def test_load_ho3d_skips_missing_joints_and_splits(tmp_path):
     assert [len(s) for s in seqs] == [12, 17]
 
 
+def test_load_ho3d_survives_a_stray_non_numeric_pkl(tmp_path):
+    """This loader runs AFTER a 31.9 GB download. One oddly-named file must not
+    take the whole run down with a ValueError from int()."""
+    root = str(tmp_path / "HO3D_v3")
+    inverse = np.argsort(MANO_TO_MEDIAPIPE)
+    hand = synthetic_hand(20)[:, inverse, :]
+    _write_ho3d(root, "ABF10", [(i, hand[i]) for i in range(20)])
+    with open(os.path.join(root, "train", "ABF10", "meta", "README.pkl"), "wb") as fh:
+        pickle.dump({"note": "not a frame"}, fh)
+
+    seqs, groups = load_ho3d(root, joint_order="mano")
+    assert len(seqs) == 1 and len(seqs[0]) == 20
+    assert groups == ["ABF10"]
+
+
 def test_load_ho3d_missing_root_is_explicit(tmp_path):
     with pytest.raises(FileNotFoundError, match="Expected the extracted HO-3D layout"):
         load_ho3d(str(tmp_path / "nope"))
