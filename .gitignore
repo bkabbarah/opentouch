@@ -249,7 +249,14 @@ worst_queries.csv
 # make regression_main record git_dirty=True, which destroys the value of that
 # provenance field -- it should mean "the source differed from the recorded
 # commit", not "results exist".
+#
+# `results_*.json` at the repo ROOT stays ignored for exactly that reason --
+# that is where cluster runs write. The `results/` DIRECTORY is now tracked
+# and is the opposite case: it is a curated mirror, it exists only in working
+# copies (never on the cluster, verified), so committing it cannot make a
+# cluster run dirty. It is tracked because every number in HANDOFF.md and any
+# paper draft is backed by a file in there, and cluster access is finite --
+# losing the box must not mean losing the provenance chain.
 MORNING_REPORT.md
 gate0_*.json
 assets/B_matrices_shuffled.npz
-results/
