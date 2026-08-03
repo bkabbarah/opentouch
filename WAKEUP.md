@@ -121,6 +121,23 @@ the JSONs — that is what turned up corrections 9–11 last night.
   `probesweep` correctly queued behind it.
 - **New: `scripts/load_public_hands.py`** + 17 tests. Suite is **260 passing**
   (was 243).
+- **Rehearsed both runner scripts end to end against synthetic data, and it
+  found three bugs that would each have hit you in the morning.** I built fake
+  HO-3D and DexYCB trees and ran the real scripts on them rather than assuming
+  the pieces composed.
+  1. **`rotation_share.py` rejected its own documented input.** Gap-splitting
+     makes sequences ragged; `np.save` stores those as an *object* array, and
+     `_as_tensor` only tested for `list`/`tuple`. The loader worked, the
+     diagnostic worked, and the two-command pipeline between them died on
+     command two — the only way the CLI is ever used. Fixed, with a
+     round-trip regression test.
+  2. **`run_ho3d.sh` derived the wrong dataset root** (`extracted/train/train`).
+     Now derived from the `train/` directory's parent, verified against both
+     plausible zip layouts.
+  3. **`run_ho3d.sh` deleted the 31.9 GB zip before checking extraction
+     worked.** If the unzip pattern had missed, you'd have re-downloaded 31.9 GB.
+     It now verifies the layout and the `.pkl` count first, and *keeps* the zip
+     with a diagnostic message on failure.
 - **Caught one live bug in that loader before it could bite you.** I had it
   defaulting both datasets to MANO joint order. HO-3D is MANO — confirmed
   against its own `jointsMapManoToSimple`, which is byte-identical to my remap.
