@@ -279,3 +279,40 @@ def test_output_satisfies_rotation_share_contract(tmp_path):
     # This motion is a pure rigid rotation plus small noise, so the diagnostic
     # must report a share near 1 -- if it does not, the wiring is wrong.
     assert report["horizons"]["8"]["median_rigid_share"] > 0.9
+
+
+def test_ragged_sequences_survive_an_npy_roundtrip(tmp_path):
+    """Regression: the CLI path, not the in-process one.
+
+    Gap-splitting makes sequences ragged, and np.save stores those as an OBJECT
+    array. np.load hands that object array straight to rotation_share.py, which
+    used to reject it -- so the loader and the diagnostic each worked alone and
+    the documented two-command pipeline failed on the second command.
+    """
+    sys.path.insert(0, os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
+    from rotation_share import rotation_share_report  # noqa: E402
+
+    seqs = [synthetic_hand(n, seed=i) for i, n in enumerate((30, 17, 22))]
+    arr = np.empty(len(seqs), dtype=object)
+    for i, s in enumerate(seqs):
+        arr[i] = s
+    path = str(tmp_path / "poses.npy")
+    np.save(path, arr, allow_pickle=True)
+
+    loaded = np.load(path, allow_pickle=True)
+    assert loaded.dtype == object, "fixture must actually be ragged"
+
+    report = rotation_share_report(loaded, horizons=[2, 8], fps=30, name="ragged")
+    assert report["n_sequences"] == 3
+    assert report["horizons"]["8"]["n_pairs"] > 0
+
+
+def test_malformed_sequence_names_the_offender():
+    sys.path.insert(0, os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
+    from rotation_share import rotation_share_report  # noqa: E402
+
+    bad = [synthetic_hand(20), np.zeros((10, 17, 3), dtype=np.float32)]
+    with pytest.raises(ValueError, match=r"sequence 1 must be \(T,21,3\)"):
+        rotation_share_report(bad, horizons=[2], fps=30)

@@ -47,8 +47,24 @@ from opentouch.articulation_frames import hand_frame_degenerate, rigid_fraction
 
 
 def _as_tensor(poses):
+    # Variable-length sequences survive np.save/np.load as an OBJECT array, not
+    # as a list -- so `np.load(...)` on a ragged dump lands here, not in the
+    # list branch below. Without this, the documented "list of (T_i,21,3)"
+    # input works in-process but fails the moment it round-trips through a
+    # .npy file, which is exactly how the CLI is used.
+    if isinstance(poses, np.ndarray) and poses.dtype == object:
+        poses = list(poses)
     if isinstance(poses, (list, tuple)):
-        return [torch.as_tensor(np.asarray(p), dtype=torch.float32) for p in poses]
+        seqs = []
+        for i, p in enumerate(poses):
+            t = torch.as_tensor(np.asarray(p, dtype=np.float32), dtype=torch.float32)
+            if t.dim() != 3 or tuple(t.shape[-2:]) != (21, 3):
+                raise ValueError(
+                    f"sequence {i} must be (T,21,3) with joint 0 = wrist, got "
+                    f"{tuple(t.shape)}"
+                )
+            seqs.append(t)
+        return seqs
     arr = torch.as_tensor(np.asarray(poses), dtype=torch.float32)
     if arr.dim() != 4 or arr.shape[-2:] != (21, 3):
         raise ValueError(
