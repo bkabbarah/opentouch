@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from load_public_hands import (  # noqa: E402
     FINGER_CHAINS,
     MANO_TO_MEDIAPIPE,
+    NATIVE_ORDER,
     check_joint_order,
     load_dexycb,
     load_ho3d,
@@ -186,32 +187,59 @@ def _write_dexycb(root, subject, take, cameras, joints_per_frame):
                      joint_2d=np.zeros((1, 21, 2), dtype=np.float32))
 
 
+def test_native_orders_are_per_dataset():
+    """The two datasets disagree, and the code must not paper over it.
+
+    HO-3D stores MANO order (its vis_HO3D.py remaps train joints with
+    jointsMapManoToSimple). DexYCB's joints come from manopth, which already
+    applies that same remap inside forward(), so they arrive MediaPipe-ordered
+    and must NOT be remapped again.
+    """
+    assert NATIVE_ORDER["ho3d"] == "mano"
+    assert NATIVE_ORDER["dexycb"] == "mediapipe"
+
+
 def test_load_dexycb_uses_one_camera_by_default(tmp_path):
     """Eight synchronised views of one grasp must not become eight samples."""
     root = str(tmp_path / "dexycb")
-    inverse = np.argsort(MANO_TO_MEDIAPIPE)
-    hand = synthetic_hand(20)[:, inverse, :]
+    hand = synthetic_hand(20)  # DexYCB ships MediaPipe order already
     cams = ["8402120609%02d" % i for i in range(8)]
     _write_dexycb(root, "20200709-subject-01", "20200709_141754", cams,
                   [(i, hand[i]) for i in range(20)])
 
-    seqs, groups = load_dexycb(root, joint_order="mano")
+    seqs, groups = load_dexycb(root)
     assert len(seqs) == 1, "default must take a single camera per take"
     assert groups == ["20200709-subject-01/20200709_141754"]
+    check_joint_order(seqs, "dexycb-fixture")  # default order must be correct
 
-    many, _ = load_dexycb(root, joint_order="mano", cameras_per_seq=8)
+    many, _ = load_dexycb(root, cameras_per_seq=8)
     assert len(many) == 8, "opting in should give every view"
+
+
+def test_load_dexycb_default_order_does_not_double_remap(tmp_path):
+    """Regression: an earlier version defaulted DexYCB to 'mano', which would
+    have remapped already-correct joints into a scrambled layout."""
+    root = str(tmp_path / "dexycb")
+    hand = synthetic_hand(20)
+    _write_dexycb(root, "20200709-subject-01", "20200709_141754",
+                  ["840412060917"], [(i, hand[i]) for i in range(20)])
+
+    seqs, _ = load_dexycb(root)
+    assert np.allclose(seqs[0], hand, atol=1e-5), "default must pass joints through"
+
+    wrong, _ = load_dexycb(root, joint_order="mano")
+    with pytest.raises(ValueError, match="joint order looks WRONG"):
+        check_joint_order(wrong, "dexycb-double-remapped")
 
 
 def test_load_dexycb_drops_minus_one_sentinel(tmp_path):
     root = str(tmp_path / "dexycb")
-    inverse = np.argsort(MANO_TO_MEDIAPIPE)
-    hand = synthetic_hand(20)[:, inverse, :]
+    hand = synthetic_hand(20)
     frames = [(i, hand[i]) for i in range(20)]
     frames[9] = (9, np.full((21, 3), -1.0, dtype=np.float32))
     _write_dexycb(root, "20200709-subject-01", "20200709_141754", ["840412060917"], frames)
 
-    seqs, _ = load_dexycb(root, min_len=4, joint_order="mano")
+    seqs, _ = load_dexycb(root, min_len=4)
     assert [len(s) for s in seqs] == [9, 10]
     for s in seqs:
         assert not np.all(s <= -1.0 + 1e-6, axis=(1, 2)).any()

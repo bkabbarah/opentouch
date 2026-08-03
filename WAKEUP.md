@@ -119,8 +119,17 @@ the JSONs — that is what turned up corrections 9–11 last night.
   corrections applied — see §3 of `HANDOFF.md`.
 - **`aphz` still running**, ~8/24 runs done as of 23:43, on k=4 now.
   `probesweep` correctly queued behind it.
-- **New: `scripts/load_public_hands.py`** + 15 tests. Suite is **258 passing**
+- **New: `scripts/load_public_hands.py`** + 17 tests. Suite is **260 passing**
   (was 243).
+- **Caught one live bug in that loader before it could bite you.** I had it
+  defaulting both datasets to MANO joint order. HO-3D is MANO — confirmed
+  against its own `jointsMapManoToSimple`, which is byte-identical to my remap.
+  **DexYCB is not.** Its joints come out of `manopth`, whose `ManoLayer.forward()`
+  already applies that remap internally, and dex-ycb-toolkit passes the result
+  through untouched — so DexYCB ships MediaPipe order and remapping it again
+  would have scrambled it. Order is now per-dataset (`NATIVE_ORDER`), with a
+  regression test. You don't need to pass any flag; the runner scripts are
+  correct as written.
 
 ```bash
 ssh bashark@mib.media.mit.edu 'tail -3 /tmp/aphz_master.log; tail -2 /tmp/probesweep_master.log'

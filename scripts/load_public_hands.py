@@ -11,8 +11,21 @@ THREE TRAPS THIS FILE EXISTS TO STOP.
 
 1. JOINT ORDER. OpenTouch uses the MediaPipe layout -- 0 wrist, then thumb,
    index, middle, ring, pinky, four joints each, so index MCP is 5, middle MCP
-   is 9, pinky MCP is 17. HO-3D and (probably) DexYCB ship the MANO layout,
-   where those indices mean something else entirely.
+   is 9, pinky MCP is 17.
+
+   The two datasets do NOT agree with each other, which is why the native
+   layout is per-dataset (NATIVE_ORDER) rather than one global default:
+
+     HO-3D    -> MANO order. Its own vis_HO3D.py applies
+                 jointsMapManoToSimple = [0,13,14,15,16,1,2,3,17,4,5,6,18,
+                 10,11,12,19,7,8,9,20] to train-split hand joints, which is
+                 byte-identical to MANO_TO_MEDIAPIPE below.
+     DexYCB   -> ALREADY MediaPipe order, despite being MANO-derived.
+                 manopth's ManoLayer.forward() applies that same reorder
+                 internally ("Reorder joints to match visualization
+                 utilities") and dex-ycb-toolkit's MANOLayer.forward() returns
+                 manopth's output unchanged apart from a /1000 unit scale.
+                 Remapping it again would scramble a correct layout.
 
    For the rotation share itself this would not matter: rigid_fraction fits
    Kabsch to the whole point cloud, so it is invariant to any permutation of
@@ -64,6 +77,15 @@ MANO_TO_MEDIAPIPE = np.array(
     [0, 13, 14, 15, 16, 1, 2, 3, 17, 4, 5, 6, 18, 10, 11, 12, 19, 7, 8, 9, 20],
     dtype=np.int64,
 )
+
+# The layout each dataset actually ships in. See trap 1 in the module
+# docstring for the source-level evidence behind each entry; they differ, so
+# there is deliberately no single global default.
+NATIVE_ORDER = {
+    "ho3d": "mano",
+    "dexycb": "mediapipe",
+    "arctic": "mano",
+}
 
 WRIST = 0
 INDEX_MCP, MIDDLE_MCP, PINKY_MCP = 5, 9, 17
@@ -221,9 +243,12 @@ def load_ho3d(root, split="train", min_len=8, joint_order="mano", limit_seqs=Non
 # --------------------------------------------------------------------------
 # DexYCB
 # --------------------------------------------------------------------------
-def load_dexycb(root, min_len=8, joint_order="mano", cameras_per_seq=1, limit_seqs=None):
+def load_dexycb(root, min_len=8, joint_order="mediapipe", cameras_per_seq=1, limit_seqs=None):
     """<root>/<subject>/<YYYYMMDD_HHMMSS>/<camera>/labels_*.npz, 'joint_3d'
     shaped (1,21,3) in millimetres, -1 where unavailable.
+
+    Note the default order differs from HO-3D's: DexYCB's joints come out of
+    manopth, which already reorders to the MediaPipe layout internally.
 
     Only `cameras_per_seq` cameras are used -- see trap 3 in the module
     docstring. Units are millimetres but rigid_fraction is a ratio of energies,
@@ -348,9 +373,9 @@ def main():
     ap.add_argument("--root", required=True)
     ap.add_argument("--out-prefix", required=True,
                     help="writes <prefix>_poses.npy and <prefix>_groups.npy")
-    ap.add_argument("--joint-order", default="mano", choices=["mano", "mediapipe"],
-                    help="layout the dataset ships in (default mano, which is "
-                         "what HO-3D and DexYCB use)")
+    ap.add_argument("--joint-order", default=None, choices=["mano", "mediapipe"],
+                    help="override the layout this dataset ships in; by default "
+                         "each dataset uses its own (HO-3D mano, DexYCB mediapipe)")
     ap.add_argument("--min-len", type=int, default=8,
                     help="drop contiguous runs shorter than this")
     ap.add_argument("--limit-seqs", type=int, default=None,
@@ -363,8 +388,10 @@ def main():
                     help="warn instead of failing when the layout check trips")
     args = ap.parse_args()
 
-    kw = dict(min_len=args.min_len, joint_order=args.joint_order,
-              limit_seqs=args.limit_seqs)
+    order = args.joint_order or NATIVE_ORDER[args.dataset]
+    print("%s ships %s-ordered joints%s"
+          % (args.dataset, order, " (overridden)" if args.joint_order else ""))
+    kw = dict(min_len=args.min_len, joint_order=order, limit_seqs=args.limit_seqs)
     if args.dataset == "ho3d":
         kw["split"] = args.split
     if args.dataset == "dexycb":
