@@ -1,0 +1,224 @@
+{
+  "name": "DexYCB (3 subjects)",
+  "n_sequences": 300,
+  "horizons": {
+    "2": {
+      "n_pairs": 19678,
+      "median_all": 0.8148125410079956,
+      "mean_all": 0.7364434599876404,
+      "by_decile": [
+        {
+          "decile": 1,
+          "n": 1968,
+          "motion_lo": 0.00033564987825229764,
+          "motion_hi": 0.0038749048486351966,
+          "median_rigid_share": 0.5291169881820679
+        },
+        {
+          "decile": 2,
+          "n": 1968,
+          "motion_lo": 0.0038749048486351966,
+          "motion_hi": 0.007368373405188322,
+          "median_rigid_share": 0.6662651896476746
+        },
+        {
+          "decile": 3,
+          "n": 1968,
+          "motion_lo": 0.007368373405188322,
+          "motion_hi": 0.012768385466188192,
+          "median_rigid_share": 0.7556746006011963
+        },
+        {
+          "decile": 4,
+          "n": 1967,
+          "motion_lo": 0.012768385466188192,
+          "motion_hi": 0.018948623165488242,
+          "median_rigid_share": 0.8092540502548218
+        },
+        {
+          "decile": 5,
+          "n": 1968,
+          "motion_lo": 0.018948623165488242,
+          "motion_hi": 0.025131269358098507,
+          "median_rigid_share": 0.8176888823509216
+        },
+        {
+          "decile": 6,
+          "n": 1968,
+          "motion_lo": 0.025131269358098507,
+          "motion_hi": 0.032119096815586085,
+          "median_rigid_share": 0.8383572101593018
+        },
+        {
+          "decile": 7,
+          "n": 1967,
+          "motion_lo": 0.032119096815586085,
+          "motion_hi": 0.04061129130423069,
+          "median_rigid_share": 0.8645391464233398
+        },
+        {
+          "decile": 8,
+          "n": 1968,
+          "motion_lo": 0.04061129130423069,
+          "motion_hi": 0.05279616340994835,
+          "median_rigid_share": 0.895814061164856
+        },
+        {
+          "decile": 9,
+          "n": 1968,
+          "motion_lo": 0.05279616340994835,
+          "motion_hi": 0.07386087849736213,
+          "median_rigid_share": 0.9047605991363525
+        },
+        {
+          "decile": 10,
+          "n": 1968,
+          "motion_lo": 0.07386087849736213,
+          "motion_hi": 0.4274037480354309,
+          "median_rigid_share": 0.9318680763244629
+        }
+      ],
+      "by_floor": {
+        "0": {
+          "n": 19678,
+          "median_rigid_share": 0.8148125410079956,
+          "mean_rigid_share": 0.7364434599876404
+        },
+        "10": {
+          "n": 17710,
+          "median_rigid_share": 0.8398241996765137,
+          "mean_rigid_share": 0.7618652582168579
+        },
+        "25": {
+          "n": 14758,
+          "median_rigid_share": 0.8662417531013489,
+          "mean_rigid_share": 0.7848132848739624
+        },
+        "50": {
+          "n": 9839,
+          "median_rigid_share": 0.8919525742530823,
+          "mean_rigid_share": 0.8135452270507812
+        },
+        "75": {
+          "n": 4920,
+          "median_rigid_share": 0.9164797067642212,
+          "mean_rigid_share": 0.8491209149360657
+        },
+        "90": {
+          "n": 1968,
+          "median_rigid_share": 0.9318680763244629,
+          "mean_rigid_share": 0.87436443567276
+        }
+      }
+    },
+    "8": {
+      "n_pairs": 17878,
+      "median_all": 0.8960909247398376,
+      "mean_all": 0.8161991834640503,
+      "by_decile": [
+        {
+          "decile": 1,
+          "n": 1788,
+          "motion_lo": 0.0009086391655728221,
+          "motion_hi": 0.0117661127820611,
+          "median_rigid_share": 0.6481209397315979
+        },
+        {
+          "decile": 2,
+          "n": 1788,
+          "motion_lo": 0.0117661127820611,
+          "motion_hi": 0.024570852890610693,
+          "median_rigid_share": 0.8127527832984924
+        },
+        {
+          "decile": 3,
+          "n": 1788,
+          "motion_lo": 0.024570852890610693,
+          "motion_hi": 0.04667421095073223,
+          "median_rigid_share": 0.9005050659179688
+        },
+        {
+          "decile": 4,
+          "n": 1787,
+          "motion_lo": 0.04667421095073223,
+          "motion_hi": 0.06670101284980774,
+          "median_rigid_share": 0.8784542083740234
+        },
+        {
+          "decile": 5,
+          "n": 1788,
+          "motion_lo": 0.06670101284980774,
+          "motion_hi": 0.08542411029338837,
+          "median_rigid_share": 0.8824889659881592
+        },
+        {
+          "decile": 6,
+          "n": 1788,
+          "motion_lo": 0.08542411029338837,
+          "motion_hi": 0.10630528181791304,
+          "median_rigid_share": 0.8850158452987671
+        },
+        {
+          "decile": 7,
+          "n": 1787,
+          "motion_lo": 0.10630528181791304,
+          "motion_hi": 0.13174717873334885,
+          "median_rigid_share": 0.9153628349304199
+        },
+        {
+          "decile": 8,
+          "n": 1788,
+          "motion_lo": 0.13174717873334885,
+          "motion_hi": 0.16482791006565095,
+          "median_rigid_share": 0.9394681453704834
+        },
+        {
+          "decile": 9,
+          "n": 1788,
+          "motion_lo": 0.16482791006565095,
+          "motion_hi": 0.2183773621916771,
+          "median_rigid_share": 0.9520795345306396
+        },
+        {
+          "decile": 10,
+          "n": 1788,
+          "motion_lo": 0.2183773621916771,
+          "motion_hi": 0.7297948002815247,
+          "median_rigid_share": 0.9709369540214539
+        }
+      ],
+      "by_floor": {
+        "0": {
+          "n": 17878,
+          "median_rigid_share": 0.8960909247398376,
+          "mean_rigid_share": 0.8161991834640503
+        },
+        "10": {
+          "n": 16090,
+          "median_rigid_share": 0.9125518798828125,
+          "mean_rigid_share": 0.8393067121505737
+        },
+        "25": {
+          "n": 13408,
+          "median_rigid_share": 0.9271640777587891,
+          "mean_rigid_share": 0.8513174653053284
+        },
+        "50": {
+          "n": 8939,
+          "median_rigid_share": 0.9399927854537964,
+          "mean_rigid_share": 0.8835420608520508
+        },
+        "75": {
+          "n": 4470,
+          "median_rigid_share": 0.9592762589454651,
+          "mean_rigid_share": 0.922352135181427
+        },
+        "90": {
+          "n": 1788,
+          "median_rigid_share": 0.9709369540214539,
+          "mean_rigid_share": 0.942628026008606
+        }
+      }
+    }
+  }
+}

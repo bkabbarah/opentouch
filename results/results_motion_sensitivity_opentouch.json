@@ -1,0 +1,224 @@
+{
+  "name": "OpenTouch",
+  "n_sequences": 7620,
+  "horizons": {
+    "2": {
+      "n_pairs": 200000,
+      "median_all": 0.9572367072105408,
+      "mean_all": 0.8361038565635681,
+      "by_decile": [
+        {
+          "decile": 1,
+          "n": 20000,
+          "motion_lo": 0.0,
+          "motion_hi": 0.00685127847827971,
+          "median_rigid_share": 0.8332303762435913
+        },
+        {
+          "decile": 2,
+          "n": 19999,
+          "motion_lo": 0.00685127847827971,
+          "motion_hi": 0.012178044766187668,
+          "median_rigid_share": 0.9347381591796875
+        },
+        {
+          "decile": 3,
+          "n": 20001,
+          "motion_lo": 0.012178044766187668,
+          "motion_hi": 0.017577466554939743,
+          "median_rigid_share": 0.9394538402557373
+        },
+        {
+          "decile": 4,
+          "n": 20000,
+          "motion_lo": 0.017577466554939743,
+          "motion_hi": 0.023484568670392038,
+          "median_rigid_share": 0.9426203966140747
+        },
+        {
+          "decile": 5,
+          "n": 20000,
+          "motion_lo": 0.023484568670392038,
+          "motion_hi": 0.03027599584311247,
+          "median_rigid_share": 0.947021484375
+        },
+        {
+          "decile": 6,
+          "n": 20000,
+          "motion_lo": 0.03027599584311247,
+          "motion_hi": 0.038525012135505673,
+          "median_rigid_share": 0.9545501470565796
+        },
+        {
+          "decile": 7,
+          "n": 20000,
+          "motion_lo": 0.038525012135505673,
+          "motion_hi": 0.049549679085612294,
+          "median_rigid_share": 0.9641165137290955
+        },
+        {
+          "decile": 8,
+          "n": 20000,
+          "motion_lo": 0.049549679085612294,
+          "motion_hi": 0.06532011926174167,
+          "median_rigid_share": 0.972732663154602
+        },
+        {
+          "decile": 9,
+          "n": 20000,
+          "motion_lo": 0.06532011926174167,
+          "motion_hi": 0.09341702014207842,
+          "median_rigid_share": 0.98147052526474
+        },
+        {
+          "decile": 10,
+          "n": 20000,
+          "motion_lo": 0.09341702014207842,
+          "motion_hi": 0.5974281430244446,
+          "median_rigid_share": 0.9898723363876343
+        }
+      ],
+      "by_floor": {
+        "0": {
+          "n": 200000,
+          "median_rigid_share": 0.9572367072105408,
+          "mean_rigid_share": 0.8361038565635681
+        },
+        "10": {
+          "n": 180000,
+          "median_rigid_share": 0.9634373188018799,
+          "mean_rigid_share": 0.8586371541023254
+        },
+        "25": {
+          "n": 150000,
+          "median_rigid_share": 0.9680418968200684,
+          "mean_rigid_share": 0.8641117215156555
+        },
+        "50": {
+          "n": 100000,
+          "median_rigid_share": 0.9764916300773621,
+          "mean_rigid_share": 0.8794677257537842
+        },
+        "75": {
+          "n": 50000,
+          "median_rigid_share": 0.9849435687065125,
+          "mean_rigid_share": 0.9061986207962036
+        },
+        "90": {
+          "n": 20000,
+          "median_rigid_share": 0.9898723363876343,
+          "mean_rigid_share": 0.9303795695304871
+        }
+      }
+    },
+    "8": {
+      "n_pairs": 200000,
+      "median_all": 0.9607810974121094,
+      "mean_all": 0.8531736135482788,
+      "by_decile": [
+        {
+          "decile": 1,
+          "n": 20000,
+          "motion_lo": 0.0,
+          "motion_hi": 0.02810745108872652,
+          "median_rigid_share": 0.9064065217971802
+        },
+        {
+          "decile": 2,
+          "n": 20000,
+          "motion_lo": 0.02810745108872652,
+          "motion_hi": 0.046203134208917626,
+          "median_rigid_share": 0.9307177662849426
+        },
+        {
+          "decile": 3,
+          "n": 20000,
+          "motion_lo": 0.046203134208917626,
+          "motion_hi": 0.06443063244223594,
+          "median_rigid_share": 0.9293849468231201
+        },
+        {
+          "decile": 4,
+          "n": 20000,
+          "motion_lo": 0.06443063244223594,
+          "motion_hi": 0.0840576395392418,
+          "median_rigid_share": 0.9352916479110718
+        },
+        {
+          "decile": 5,
+          "n": 20000,
+          "motion_lo": 0.0840576395392418,
+          "motion_hi": 0.10632156953215599,
+          "median_rigid_share": 0.9411636590957642
+        },
+        {
+          "decile": 6,
+          "n": 20000,
+          "motion_lo": 0.10632156953215599,
+          "motion_hi": 0.13266161382198333,
+          "median_rigid_share": 0.9497965574264526
+        },
+        {
+          "decile": 7,
+          "n": 20000,
+          "motion_lo": 0.13266161382198333,
+          "motion_hi": 0.16550858914852137,
+          "median_rigid_share": 0.9617350101470947
+        },
+        {
+          "decile": 8,
+          "n": 20000,
+          "motion_lo": 0.16550858914852137,
+          "motion_hi": 0.21066747307777406,
+          "median_rigid_share": 0.9742374420166016
+        },
+        {
+          "decile": 9,
+          "n": 20000,
+          "motion_lo": 0.21066747307777406,
+          "motion_hi": 0.2845775216817856,
+          "median_rigid_share": 0.9853596687316895
+        },
+        {
+          "decile": 10,
+          "n": 20000,
+          "motion_lo": 0.2845775216817856,
+          "motion_hi": 0.87423175573349,
+          "median_rigid_share": 0.9939329624176025
+        }
+      ],
+      "by_floor": {
+        "0": {
+          "n": 200000,
+          "median_rigid_share": 0.9607810974121094,
+          "mean_rigid_share": 0.8531736135482788
+        },
+        "10": {
+          "n": 180000,
+          "median_rigid_share": 0.9654489755630493,
+          "mean_rigid_share": 0.8595015406608582
+        },
+        "25": {
+          "n": 150000,
+          "median_rigid_share": 0.9705334901809692,
+          "mean_rigid_share": 0.8686258792877197
+        },
+        "50": {
+          "n": 100000,
+          "median_rigid_share": 0.9799242615699768,
+          "mean_rigid_share": 0.8935111165046692
+        },
+        "75": {
+          "n": 50000,
+          "median_rigid_share": 0.9893011450767517,
+          "mean_rigid_share": 0.9321266412734985
+        },
+        "90": {
+          "n": 20000,
+          "median_rigid_share": 0.9939329624176025,
+          "mean_rigid_share": 0.9640488028526306
+        }
+      }
+    }
+  }
+}

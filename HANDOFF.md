@@ -929,6 +929,57 @@ a policy, which needs lead time, and it is the opposite of the delta target's
 behaviour, where the pose-only margin vanished at k=16 and the interval
 crossed zero (§2.19b).
 
+### 2.29 Is the rotation share an artifact of still frames? No — the opposite
+
+`results/results_motion_sensitivity_{opentouch,dexycb}.json`,
+`scripts/rotation_share_motion_sensitivity.py`.
+
+**The objection.** `rotation_share.py` applies no minimum-motion threshold. For
+a hand that barely moves between t and t+k, the reported fraction is a ratio of
+two tiny numbers dominated by annotation noise. If those samples drove the
+headline median, the claim would be an artifact of stillness. This is the first
+thing a reviewer will ask.
+
+**The answer: the rigid share RISES with motion magnitude on both datasets, so
+the still frames are dragging the published number DOWN.** Every motion filter
+makes the claim stronger, not weaker.
+
+| filter | OpenTouch k=8 | DexYCB k=8 |
+|---|---|---|
+| all samples (**the published figure**) | 96.1% / mean 85.3% | 89.6% / mean 81.6% |
+| above median motion | **98.0%** / mean 89.4% | **94.0%** / mean 88.4% |
+| top decile of motion | **99.4%** / mean 96.4% | **97.1%** / mean 94.3% |
+
+By motion decile, stillest to largest:
+
+| dataset, k | stillest decile | largest-motion decile |
+|---|---|---|
+| OpenTouch, k=2 | 83.3% | 99.0% |
+| OpenTouch, k=8 | 90.6% | 99.4% |
+| DexYCB, k=2 | 52.9% | 93.2% |
+| DexYCB, k=8 | 64.8% | 97.1% |
+
+The trend is monotone across all ten deciles in three of the four cases (the
+exception is DexYCB k=8, where deciles 3 and 4 invert by 2.3 points before the
+climb resumes).
+
+**This also explains the median-vs-mean gap.** The published means (85.3%,
+81.6%) sit well below the medians because the distribution has a left tail —
+and that tail *is* the near-still, noise-dominated samples. Filter to the top
+motion decile and the mean rises to 96.4% and 94.3%, nearly meeting the median.
+The skew was never evidence of a fragile effect; it was the stillness tail.
+
+**Why still frames score low, verified rather than assumed.** The metric was
+checked on synthetic input: a pure rigid rotation scores **100.0%**, and
+isotropic per-joint noise with no rigid component scores **22.4%**. Annotation
+noise is badly explained by a single whole-hand rotation, so noise-dominated
+samples land near the bottom.
+
+**What to say in the paper.** Report the all-samples figure as the headline —
+it is the conservative one — and state that restricting to above-median motion
+raises it to 98.0% (OpenTouch) and 94.0% (DexYCB). Pre-empting this beats
+having it raised in review, and the answer runs in your favour.
+
 ### 2.28 CROSS-DATASET: the rotation claim replicates on DexYCB
 
 `results/results_rotation_share_dexycb3.json` (per subject),
