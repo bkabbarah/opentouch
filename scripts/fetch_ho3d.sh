@@ -12,6 +12,11 @@
 #       shares do not: copying the link address drops the session cookies that
 #       redeem the share, and the bare download.aspx form answers 403.
 #
+#   bash scripts/fetch_ho3d.sh --skip-download
+#       Resume when HO3D_v3.zip is already fully downloaded. Use this if the
+#       download finished but the rest died -- e.g. the ssh session that
+#       launched it ended and SIGHUP killed the script. RUN IT UNDER tmux.
+#
 # Either path: downloads the zip, extracts only meta/*.pkl, VERIFIES the
 # extraction before deleting the 31.9 GB zip, converts to (N,T,21,3), and runs
 # scripts/rotation_share.py.
@@ -44,7 +49,16 @@ print_curl_recipe() {
     echo "  7. bash scripts/fetch_ho3d.sh --from-curl"
 }
 
-echo "== [1/4] downloading HO3D_v3.zip (31.9 GB) -- resumable, safe to re-run =="
+if [ "$MODE" = "--skip-download" ]; then
+    if [ ! -f HO3D_v3.zip ]; then
+        echo "ERROR: --skip-download given but $D/HO3D_v3.zip does not exist."
+        exit 1
+    fi
+    echo "== [1/4] skipped: using existing HO3D_v3.zip ($(stat -c %s HO3D_v3.zip) bytes) =="
+    RC=0
+else
+
+echo "== [1/4] downloading HO3D_v3.zip (31.9 GiB) -- resumable, safe to re-run =="
 if [ "$MODE" = "--from-curl" ]; then
     if [ ! -s "$CURLFILE" ]; then
         echo "ERROR: $CURLFILE is missing or empty."
@@ -63,6 +77,8 @@ else
     curl -fL --retry 5 --retry-delay 15 -C - -o HO3D_v3.zip "$MODE"
     RC=$?
 fi
+
+fi  # end --skip-download branch
 
 if [ $RC -ne 0 ]; then
     echo
