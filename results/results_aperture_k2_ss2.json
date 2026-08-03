@@ -1,0 +1,63 @@
+{
+  "per_run": {
+    "frz": [
+      {
+        "run": "ahz2_2_frz_k2_s1",
+        "best_val_epoch": 8,
+        "val_r2": 0.1065,
+        "val_auc": 0.5922,
+        "test_r2": 0.129366,
+        "test_auc": 0.622892
+      }
+    ],
+    "frzshuf": [
+      {
+        "run": "ahz2_2_frzshuf_k2_s1",
+        "best_val_epoch": 10,
+        "val_r2": 0.0077,
+        "val_auc": 0.5242,
+        "test_r2": 0.015131,
+        "test_auc": 0.527471
+      }
+    ],
+    "pose": [
+      {
+        "run": "ahz2_2_pose_k2_s1",
+        "best_val_epoch": 50,
+        "val_r2": 0.0275,
+        "val_auc": 0.5432,
+        "test_r2": 0.025224,
+        "test_auc": 0.532164
+      }
+    ]
+  },
+  "means": {
+    "frz": {
+      "test_r2": 0.129366,
+      "test_auc": 0.622892,
+      "epochs": [
+        8
+      ]
+    },
+    "frzshuf": {
+      "test_r2": 0.015131,
+      "test_auc": 0.527471,
+      "epochs": [
+        10
+      ]
+    },
+    "pose": {
+      "test_r2": 0.025224,
+      "test_auc": 0.532164,
+      "epochs": [
+        50
+      ]
+    }
+  },
+  "contrasts": {
+    "frz_minus_pose_r2": 0.10414200000000001,
+    "frz_minus_pose_auc": 0.09072800000000003,
+    "frz_minus_frzshuf_r2": 0.114235,
+    "frz_minus_frzshuf_auc": 0.09542099999999998
+  }
+}

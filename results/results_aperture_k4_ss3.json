@@ -1,0 +1,63 @@
+{
+  "per_run": {
+    "frz": [
+      {
+        "run": "ahz4_3_frz_k4_s1",
+        "best_val_epoch": 4,
+        "val_r2": 0.1535,
+        "val_auc": 0.6308,
+        "test_r2": 0.223194,
+        "test_auc": 0.654044
+      }
+    ],
+    "frzshuf": [
+      {
+        "run": "ahz4_3_frzshuf_k4_s1",
+        "best_val_epoch": 4,
+        "val_r2": 0.0151,
+        "val_auc": 0.5324,
+        "test_r2": 0.025813,
+        "test_auc": 0.541184
+      }
+    ],
+    "pose": [
+      {
+        "run": "ahz4_3_pose_k4_s1",
+        "best_val_epoch": 56,
+        "val_r2": 0.052,
+        "val_auc": 0.5719,
+        "test_r2": 0.04995,
+        "test_auc": 0.565326
+      }
+    ]
+  },
+  "means": {
+    "frz": {
+      "test_r2": 0.223194,
+      "test_auc": 0.654044,
+      "epochs": [
+        4
+      ]
+    },
+    "frzshuf": {
+      "test_r2": 0.025813,
+      "test_auc": 0.541184,
+      "epochs": [
+        4
+      ]
+    },
+    "pose": {
+      "test_r2": 0.04995,
+      "test_auc": 0.565326,
+      "epochs": [
+        56
+      ]
+    }
+  },
+  "contrasts": {
+    "frz_minus_pose_r2": 0.173244,
+    "frz_minus_pose_auc": 0.08871799999999996,
+    "frz_minus_frzshuf_r2": 0.197381,
+    "frz_minus_frzshuf_auc": 0.11285999999999996
+  }
+}

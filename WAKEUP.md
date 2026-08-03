@@ -86,7 +86,42 @@ does not exist. Corrected order is **DexYCB → HO-3D → ARCTIC**.
 
 ---
 
-## 4b. When `aphz` and `probesweep` finish, preserve their JSONs
+## 4a. READ THIS: `aphz` finished and it overturns a §2.24 claim
+
+Done 01:54, all 8 JSONs collected into `results/` and committed. I re-derived
+every cell rather than reading its summary. **§2.24's "the effect STRENGTHENS
+with horizon" does not survive the two new horizons.**
+
+| k | ms | touch − shuffled | touch − pose-only |
+|---|---|---|---|
+| 2 | 67 | +0.112 · 4/4 | **+0.088** · 4/4 |
+| 4 | 133 | +0.114 · 4/4 | +0.072 · 4/4 |
+| 8 | 267 | +0.110 · 4/4 | **+0.054** · 4/4 |
+| 16 | 533 | **+0.143** · 4/4 | +0.069 · 4/4 |
+
+The pose-only margin is **largest at the shortest horizon**, dips at k=8, and
+only partly recovers at k=16 — so the k=8→k=16 rise §2.24 leaned on is a
+recovery, not a trend. It holds in 4/4 partitions, not one. Full analysis and
+the reason (pose-only improves *faster* with horizon than touch does) is in
+`HANDOFF.md` §2.26; §2.24 now carries a SUPERSEDED-IN-PART banner.
+
+**Two things you should decide, not me:**
+1. **k=2 and k=4 are one seed per cell** (k=8 has 2–3, k=16 has 2). The shape
+   rests on single-seed estimates at the new horizons. A second seed is ~2
+   GPU-hours and you have until ~Aug 7. I did **not** queue it — `probesweep`
+   is using the GPUs and it closes reviewer gaps you already committed to.
+2. The **capacity-matched contrast is flat and robust** (+0.110 to +0.114
+   across 67–267 ms, positive in 16/16 cells, never below +0.062). If you don't
+   want to spend the seeds, report that one and drop the horizon-shape claim.
+
+Good news in the same data: **epoch selection now reproduces 25/25** — touch
+selects epochs 2–12, pose-only 30–60, touch strictly earlier in every run
+across four horizons and four partitions. That is the most reproducible result
+in the forecasting line.
+
+`probesweep` picked up the GPUs at 01:57 and is running its first three probes.
+
+## 4b. When `probesweep` finishes, preserve its JSONs
 
 Both sweeps write to the **repo root**, where `results_*.json` is gitignored on
 purpose. Nothing is tracked until you copy it in — and cluster access ends

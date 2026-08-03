@@ -878,7 +878,13 @@ out of sample on participants held out of every training stage.
 
 **Limits:** 3 held-out scenes per partition, 2 model seeds per cell.
 
-### 2.24 Aperture at k=16 — the effect STRENGTHENS with horizon
+### 2.24 Aperture at k=16 — the effect is present at 533ms too
+
+> **SUPERSEDED IN PART BY §2.26.** The numbers below are correct. The
+> *interpretation* — that the effect strengthens with horizon — was inferred
+> from two horizons and does not hold once k=2 and k=4 are filled in: the
+> pose-only margin is largest at k=2 and smallest at k=8. Read §2.26 before
+> quoting anything directional from this section.
 
 `results_aperture_k16_ss{42,1,2,3}.json`. Identical protocol to §2.23, so the
 horizons are directly comparable.
@@ -916,6 +922,69 @@ information about where the grip is *heading*. That is the useful reading for
 a policy, which needs lead time, and it is the opposite of the delta target's
 behaviour, where the pose-only margin vanished at k=16 and the interval
 crossed zero (§2.19b).
+
+### 2.26 The full horizon curve — §2.24's "strengthens with horizon" is WRONG
+
+`results/results_aperture_k{2,4}_ss{42,1,2,3}.json`, completed 2026-08-03
+01:54. Same protocol as §2.23/§2.24 (epoch chosen on val by R², scored on
+test, four participant partitions), now at k=2 and k=4 so all four horizons
+are comparable.
+
+**§2.24 saw only k=8 and k=16, read the rise between them as a trend, and
+titled itself "the effect STRENGTHENS with horizon". With k=2 and k=4 filled
+in, that is not what the data does.**
+
+| k | ms | touch − shuffled (capacity-matched) | touch − pose-only |
+|---|---|---|---|
+| 2 | 67 | +0.112 [+0.095, +0.129] · 4/4 | **+0.088** [+0.069, +0.109] · 4/4 |
+| 4 | 133 | +0.114 [+0.062, +0.144] · 4/4 | +0.072 [+0.023, +0.096] · 4/4 |
+| 8 | 267 | +0.110 [+0.074, +0.148] · 4/4 | **+0.054** [+0.002, +0.076] · 4/4 |
+| 16 | 533 | **+0.143** [+0.099, +0.203] · 4/4 | +0.069 [+0.029, +0.120] · 4/4 |
+
+**The pose-only margin is LARGEST at the shortest horizon and smallest at
+k=8.** The k=8 → k=16 rise §2.24 leaned on is a partial recovery from a dip,
+not the continuation of a trend. This is not a one-partition artifact: the k=2
+margin exceeds the k=8 margin in **4/4 partitions** (+0.110 vs +0.064, +0.069
+vs +0.003, +0.091 vs +0.076, +0.083 vs +0.072).
+
+**Why the margin narrows while touch keeps improving.** Both arms get better
+with horizon; pose-only just improves faster over the middle of the range:
+
+| arm, mean over 4 partitions | k=2 | k=4 | k=8 | k=16 | Δ |
+|---|---|---|---|---|---|
+| touch | 0.631 | 0.641 | 0.651 | 0.700 | +0.069 |
+| pose-only | 0.543 | 0.569 | 0.597 | 0.630 | **+0.087** |
+
+So "touch carries information about where the grip is heading" (§2.24's
+reading) survives in absolute terms — touch-alone AUC does rise monotonically
+across all four horizons. What does not survive is the claim that touch's
+*advantage* grows with lead time. Against a capacity-matched control the
+advantage is flat (+0.110 to +0.114) from 67 ms to 267 ms and only rises at
+533 ms; against pose-only it shrinks then partially recovers.
+
+**The capacity-matched contrast is the robust one.** It is positive in 16/16
+partition-horizon cells, never below +0.062 in any single cell, and varies
+little across three of the four horizons.
+
+**Epoch selection now reproduces 25/25.** Touch selects epochs 2–12, pose-only
+selects 30–60, and touch selects strictly earlier than pose-only in **every one
+of 25 runs across four horizons and four partitions**, no exceptions. This is
+the most reproducible thing in the forecasting line.
+
+> **Limit, and it matters for how hard to push this.** k=2 and k=4 are **one
+> model seed per cell**; k=8 has 2–3 and k=16 has 2. The horizon *ordering*
+> above rests on single-seed estimates at the two new horizons. The 4/4
+> partition agreement makes a pure noise explanation unlikely, but a second
+> seed at k=2 and k=4 would settle it and is ~2 GPU-hours. **Do not put the
+> non-monotonic shape in a paper on one seed** — either run the seeds or report
+> only the capacity-matched contrast, which is flat and does not depend on the
+> shape.
+
+**What to change in §2.24:** its table and numbers are correct; its title and
+its closing interpretation are not. Reword to "the effect is present at every
+horizon from 67 ms to 533 ms" and drop "every comparison is larger at 533 ms",
+which correction 9 already flagged as false for R² and which this section now
+shows is false for AUC as well once k=2 and k=4 exist.
 
 ### 2.25 Rotation share: the diagnostic validates, and it holds in all 26 scenes
 
