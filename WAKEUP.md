@@ -135,6 +135,32 @@ the JSONs — that is what turned up corrections 9–11 last night.
 ssh bashark@mib.media.mit.edu 'tail -3 /tmp/aphz_master.log; tail -2 /tmp/probesweep_master.log'
 ```
 
+### Contribution #2 is verified and ready to write — I did not write it
+
+`SESSION_HANDOFF.md` §5 says the "retrieval quality is a poor proxy for
+downstream tactile utility" finding is already measured and never framed. I
+re-derived it from the JSONs; **it holds**, and it is stronger than §5 claims.
+I stopped there rather than draft paper text you didn't ask for.
+
+From `results_encoder_ladder.json` — retrieval mAP improves 2.6× and the
+forecasting gain gets *worse*, not flat:
+
+| encoder mAP | 10.81 | 16.07 | 20.26 | 25.19 | 28.24 |
+|---|---|---|---|---|---|
+| gain vs pose-only | **−8.97%** | −8.62% | −7.24% | −5.52% | **−6.90%** |
+
+From the probe JSONs — a **random** frozen encoder's marginal AUC sits inside
+the pretrained seed spread, not below it:
+
+| encoder | marginal over matched pose |
+|---|---|
+| pretrained seed 42 (the outlier high) | +0.0171 |
+| pretrained seed 0 | +0.0124 |
+| pretrained seed 1 | +0.0120 |
+| **random** | **+0.0122** |
+
+Every number above came out of `results/`, not out of `HANDOFF.md`.
+
 ### One housekeeping note
 
 To pull the new code onto the cluster I ran `git stash -u`, and the matching
