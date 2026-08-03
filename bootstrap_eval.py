@@ -62,6 +62,12 @@ def parse_args():
                         "so a scene-disjoint checkpoint is bootstrapped over its own "
                         "scene-disjoint gallery. Overriding this evaluates the model "
                         "against a split it was not trained for.")
+    p.add_argument("--model", type=str, default=None,
+                   help="Override the model config name recorded in the checkpoint. Needed "
+                        "for the avg-pool retrieval arm: those checkpoints predate the "
+                        "-AvgPool config and record the GRU name, so loading them without "
+                        "this fails on a pose.gru/projection-width mismatch (see HANDOFF "
+                        "2.15).")
     p.add_argument("--cluster", type=str, default="clip", choices=["clip", "window"],
                    help="Bootstrap resampling unit. 'clip' (default) resamples whole "
                         "clips, which is required because sliding windows within a clip "
@@ -143,7 +149,10 @@ def main():
 
     meta = _read_checkpoint_meta(args.checkpoint)
     task_type = meta.get("task_type")
-    model_name = meta.get("model")
+    model_name = args.model or meta.get("model")
+    if args.model and meta.get("model") and args.model != meta["model"]:
+        log.warning("--model=%s OVERRIDES the checkpoint's recorded %s",
+                    args.model, meta["model"])
     log.info(f"Checkpoint task: {task_type}  model: {model_name}  epoch: {meta.get('epoch')}")
 
     from opentouch_train.train import ALL_TASKS
