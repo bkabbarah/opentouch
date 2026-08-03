@@ -125,6 +125,9 @@ the JSONs — that is what turned up corrections 9–11 last night.
   found three bugs that would each have hit you in the morning.** I built fake
   HO-3D and DexYCB trees and ran the real scripts on them rather than assuming
   the pieces composed.
+  Because fix 1 touches the file that produced the 0.961 validation, I re-ran
+  that validation on the patched code: the output JSON is **byte-identical** to
+  the pre-patch run. The fix changes nothing on real data.
   1. **`rotation_share.py` rejected its own documented input.** Gap-splitting
      makes sequences ragged; `np.save` stores those as an *object* array, and
      `_as_tensor` only tested for `list`/`tuple`. The loader worked, the
