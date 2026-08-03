@@ -121,7 +121,43 @@ in the forecasting line.
 
 `probesweep` picked up the GPUs at 01:57 and is running its first three probes.
 
-## 4b. When `probesweep` finishes, preserve its JSONs
+## 4a-bis. `probesweep` also finished — and it is good news for the paper
+
+Done 03:25, 12/12, zero errors. All JSONs in `results/` and committed. Full
+analysis in `HANDOFF.md` §2.27. Three headlines:
+
+**1. Your headline probe table is now a three-encoder mean at four horizons**,
+not seed 42 alone. The centrepiece — corrected target beats conventional —
+holds at every horizon, ~4× at k=2/4/8. That is the main claim of the paper and
+it is no longer single-seed, single-horizon.
+
+**2. §2.19e was a k=8 artifact, and this is worth your attention.** It
+concluded the learned representation isn't what makes touch predictive — but it
+only tested k=8, which turns out to be the *one* horizon where pretrained and
+random encoders coincide:
+
+| k | pretrained | random | gap |
+|---|---|---|---|
+| 2 | +0.0165 | +0.0073 | **8.6 encoder-seed sd** |
+| 4 | +0.0159 | +0.0074 | **7.0 sd** |
+| 8 | +0.0138 | +0.0122 | 0.7 sd ← the only one tested |
+| 16 | +0.0075 | +0.0118 | −1.1 sd |
+
+At the horizons where the probe is strongest the learned representation
+accounts for **~55% of the marginal**. **`SESSION_HANDOFF.md` §5 says this
+finding is "fatal at a venue expecting method novelty" — that judgement rests
+on §2.19e and should be revisited.** (Caveat: random encoder is 1 seed per
+horizon; k=2 and k=4 agree closely with each other, but two more seeds at k=2
+would settle it for ~30 GPU-min.)
+
+**3. Participant-disjoint holds at all four horizons** — and is *larger* than
+the clip-split marginal at k=8 (+0.0225 vs +0.0138) and k=16. The effect is
+cleaner when participants are held out, not weaker.
+
+One incidental correction: §2.6 calls seed 42 "the outlier high". True at k=8
+and k=16 — but at k=2 and k=4 seed 0 is highest and seed 42 sits mid-pack.
+
+## 4b. Preserve anything else the cluster produces
 
 Both sweeps write to the **repo root**, where `results_*.json` is gitignored on
 purpose. Nothing is tracked until you copy it in — and cluster access ends

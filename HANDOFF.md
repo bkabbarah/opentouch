@@ -636,6 +636,12 @@ Caveat: n=1 seed for this control. Seed spread on the pretrained arms was
 
 ### 2.19e Probe random-encoder control — the HYPOTHESIS is unsupported
 
+> **SUPERSEDED BY §2.27. Do not quote this section's conclusion.** Everything
+> below is k=8 only, and k=8 turns out to be the one horizon where the
+> pretrained and random encoders coincide. At k=2 and k=4 the pretrained
+> encoder gives roughly twice the marginal, 7–9 encoder-seed sd outside noise.
+> The numbers below are correct; the generalisation from them is not.
+
 `results_probe_rigid_k8_RANDENC.json`, `probe_rigid.py --random-tactile-encoder`.
 Tactile encoder randomly initialised and frozen; **pose encoder still the
 pretrained one**, so the only thing removed is the learned tactile
@@ -922,6 +928,96 @@ information about where the grip is *heading*. That is the useful reading for
 a policy, which needs lead time, and it is the opposite of the delta target's
 behaviour, where the pose-only margin vanished at k=16 and the interval
 crossed zero (§2.19b).
+
+### 2.27 Probe paper sweep — three gaps closed, and §2.19e was a k=8 artifact
+
+12 runs, completed 2026-08-03 03:25, 0 errors.
+`results/results_probe_rigid_k{2,4,16}_{seed0,seed1,RANDENC,SCENE_CLEANENC}.json`.
+Every figure below re-derived from the JSONs.
+
+**Gap 1 — the headline table is now a three-encoder mean at every horizon**,
+not seed 42 alone. Marginal over matched pose, corrected target:
+
+| k | seed 42 | seed 0 | seed 1 | **mean** | encoder-seed sd |
+|---|---|---|---|---|---|
+| 2 | +0.0168 | +0.0177 | +0.0151 | **+0.0165** | 0.0011 |
+| 4 | +0.0164 | +0.0171 | +0.0143 | **+0.0159** | 0.0012 |
+| 8 | +0.0171 | +0.0124 | +0.0120 | **+0.0138** | 0.0023 |
+| 16 | +0.0132 | +0.0043 | +0.0051 | **+0.0075** | 0.0040 |
+
+Two things fall out. **The marginal declines monotonically with horizon** —
+touch adds most at 67 ms. And **seed 42 is not uniformly "the outlier high"**
+as §2.6 has it: at k=2 and k=4 seed 0 is highest and seed 42 sits in the
+middle. Seed 42 runs high only at k=8 and k=16. The encoder-seed sd also grows
+4x with horizon (0.0011 → 0.0040), so at k=16 the spread is over half the
+mean — independent support for §5's "do not publish the k=16 margin".
+
+**Gap 2 — the random-encoder control, at every horizon. This is the important
+one, and it overturns §2.19e's conclusion.**
+
+| k | pretrained (3-enc mean) | random | gap, in encoder-seed sd | random recovers |
+|---|---|---|---|---|
+| 2 | +0.0165 | +0.0073 | **8.6 sd** | 44% |
+| 4 | +0.0159 | +0.0074 | **7.0 sd** | 47% |
+| 8 | +0.0138 | +0.0122 | 0.7 sd | 88% |
+| 16 | +0.0075 | +0.0118 | −1.1 sd | 157% |
+
+§2.19e tested **only k=8** and concluded "the probe's marginal AUC is not
+distinguishable from what a fixed random projection achieves", and from that,
+that the learned representation is not what makes touch predictive. **k=8 is
+the single horizon where those two quantities happen to coincide.** At k=2 and
+k=4 — where the probe is strongest — the pretrained encoder delivers roughly
+**twice** the marginal of a random one, and the gap is 7–9 encoder-seed
+standard deviations wide. The same ordering shows in touch-alone AUC:
+
+| k | touch alone, pretrained | touch alone, random |
+|---|---|---|
+| 2 | 0.6490 (sd 0.0013) | 0.6083 |
+| 4 | 0.6518 (sd 0.0010) | 0.6140 |
+| 8 | 0.6606 (sd 0.0006) | 0.6392 |
+| 16 | 0.6860 (sd 0.0028) | 0.6729 |
+
+**What this means for the paper.** §5 of `SESSION_HANDOFF.md` says the learned
+representation "is not what drives the headline probe marginal", and calls that
+fatal at a venue expecting method novelty. **That assessment rests on §2.19e
+and should be revised**: at the two shortest horizons the learned
+representation accounts for about 55% of the marginal, by a margin far outside
+encoder-seed noise. The honest statement is now horizon-dependent — the
+learned representation matters at short horizons and washes out by 267 ms —
+which is a more interesting finding than either "it matters" or "it doesn't".
+
+> **Caveat, and it is the same one as everywhere else here.** The random
+> encoder is **one seed per horizon**. The k=2 and k=4 results agree closely
+> with each other (44% and 47%), which is reassuring, but neither is a tested
+> difference. Two more random seeds at k=2 would settle it and cost ~30 GPU-min.
+
+**Gap 3 — participant-disjoint holds at every horizon**, with a scene-disjoint
+encoder and a scene-disjoint split (both harder than the clip split):
+
+| k | marginal | touch alone | shuffled |
+|---|---|---|---|
+| 2 | +0.0168 | 0.6627 | 0.5011 |
+| 4 | +0.0181 | 0.6724 | 0.4995 |
+| 8 | **+0.0225** | 0.6861 | 0.4913 |
+| 16 | +0.0171 | 0.7151 | 0.4923 |
+
+Positive at all four, and **larger than the clip-split marginal** at k=8
+(+0.0225 vs +0.0138) and k=16 (+0.0171 vs +0.0075). The effect does not depend
+on participants being shared between train and test — it is, if anything,
+cleaner when they are not. Shuffled controls sit on 0.50 throughout.
+
+**The centrepiece survives as a three-encoder mean at four horizons.**
+Conventional vs corrected target, marginal over matched pose:
+
+| k | conventional | corrected |
+|---|---|---|
+| 2 | +0.0042 | **+0.0165** |
+| 4 | +0.0048 | **+0.0159** |
+| 8 | +0.0038 | **+0.0138** |
+| 16 | +0.0027 | **+0.0075** |
+
+Corrected beats conventional at every horizon, ~4x at k=2/4/8. This is the
+paper's main claim and it is no longer a single-seed, single-horizon result.
 
 ### 2.26 The full horizon curve — §2.24's "strengthens with horizon" is WRONG
 
