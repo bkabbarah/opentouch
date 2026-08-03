@@ -1,0 +1,95 @@
+{
+  "name": "DexYCB (3 subjects)",
+  "fps": 30.0,
+  "n_sequences": 300,
+  "horizons": {
+    "2": {
+      "n_pairs": 19678,
+      "median_rigid_share": 0.8148125410079956,
+      "mean_rigid_share": 0.7364434599876404,
+      "frac_above_80pct": 0.523528813903852,
+      "frac_above_90pct": 0.31578412440288645,
+      "ms_ahead": 66.66666666666667,
+      "by_group": {
+        "20200709-subject-01": {
+          "n": 6728,
+          "median_rigid_share": 0.8142074942588806
+        },
+        "20200813-subject-02": {
+          "n": 6934,
+          "median_rigid_share": 0.8558104634284973
+        },
+        "20200820-subject-03": {
+          "n": 6016,
+          "median_rigid_share": 0.7568010687828064
+        }
+      }
+    },
+    "4": {
+      "n_pairs": 19078,
+      "median_rigid_share": 0.8578135967254639,
+      "mean_rigid_share": 0.775238573551178,
+      "frac_above_80pct": 0.5982807422161652,
+      "frac_above_90pct": 0.40171925778383477,
+      "ms_ahead": 133.33333333333334,
+      "by_group": {
+        "20200709-subject-01": {
+          "n": 6528,
+          "median_rigid_share": 0.861289381980896
+        },
+        "20200813-subject-02": {
+          "n": 6734,
+          "median_rigid_share": 0.889568030834198
+        },
+        "20200820-subject-03": {
+          "n": 5816,
+          "median_rigid_share": 0.8081936836242676
+        }
+      }
+    },
+    "8": {
+      "n_pairs": 17878,
+      "median_rigid_share": 0.8960909247398376,
+      "mean_rigid_share": 0.8161991834640503,
+      "frac_above_80pct": 0.6758585971585188,
+      "frac_above_90pct": 0.48931647835328335,
+      "ms_ahead": 266.6666666666667,
+      "by_group": {
+        "20200709-subject-01": {
+          "n": 6128,
+          "median_rigid_share": 0.8981186151504517
+        },
+        "20200813-subject-02": {
+          "n": 6334,
+          "median_rigid_share": 0.9200778007507324
+        },
+        "20200820-subject-03": {
+          "n": 5416,
+          "median_rigid_share": 0.8571944832801819
+        }
+      }
+    },
+    "16": {
+      "n_pairs": 15478,
+      "median_rigid_share": 0.9322887659072876,
+      "mean_rigid_share": 0.8648261427879333,
+      "frac_above_80pct": 0.7756170047809795,
+      "frac_above_90pct": 0.5998837059051557,
+      "ms_ahead": 533.3333333333334,
+      "by_group": {
+        "20200709-subject-01": {
+          "n": 5328,
+          "median_rigid_share": 0.9257668256759644
+        },
+        "20200813-subject-02": {
+          "n": 5534,
+          "median_rigid_share": 0.9492765665054321
+        },
+        "20200820-subject-03": {
+          "n": 4616,
+          "median_rigid_share": 0.9149449467658997
+        }
+      }
+    }
+  }
+}

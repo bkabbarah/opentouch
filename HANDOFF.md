@@ -931,10 +931,11 @@ crossed zero (§2.19b).
 
 ### 2.28 CROSS-DATASET: the rotation claim replicates on DexYCB
 
-`results/results_rotation_share_dexycb.json`, 2026-08-03. DexYCB
-subject-01, 100 takes, one camera per take, labels only (no images were ever
-written to disk). 6,928 frames after dropping 342 unannotated ones and
-splitting sequences at every gap.
+`results/results_rotation_share_dexycb3.json` (per subject),
+`_dexycb3_bytake.json` (per take), `_dexycb.json` (subject-01 alone).
+2026-08-03. DexYCB **subjects 01–03, 300 takes**, one camera per take, labels
+only — no image was ever written to disk. 20,278 frames after dropping
+unannotated ones and splitting sequences at every gap.
 
 **This is the first evidence for the central claim from data this project did
 not collect.** DexYCB is NVIDIA's, recorded with a fixed multi-camera RealSense
@@ -943,15 +944,31 @@ task and annotation pipeline from OpenTouch's egocentric free-living capture.
 
 | k | ms | DexYCB median rigid share | OpenTouch median |
 |---|---|---|---|
-| 2 | 67 | **81.4%** | 95.7% |
-| 4 | 133 | 86.1% | 96.1% |
-| 8 | 267 | **89.8%** | 96.1% |
-| 16 | 533 | 92.6% | 95.6% |
+| 2 | 67 | **81.5%** | 95.7% |
+| 4 | 133 | 85.8% | 96.1% |
+| 8 | 267 | **89.6%** | 96.1% |
+| 16 | 533 | 93.2% | 95.6% |
 
 **The claim holds: the standard wrist-relative "articulation" target is
-dominated by whole-hand rotation on both datasets.** At k=8, 89.8% of DexYCB's
-target energy is rotation the target was never meant to contain. Across the 100
-takes at k=8, **88/100 exceed 80%**, range 53.7%–97.4%.
+dominated by whole-hand rotation on both datasets.** At k=8, 89.6% of DexYCB's
+target energy is rotation the target was never meant to contain. Across all 300
+takes at k=8, **261/300 exceed 80%** and **292/300 exceed 70%**, range
+53.7%–98.5%.
+
+**Adding two more people barely moved it**, which is the strongest single
+argument that this is not a subject quirk:
+
+| k | subject-01 alone | all three subjects |
+|---|---|---|
+| 2 | 81.4% | **81.5%** |
+| 4 | 86.1% | 85.8% |
+| 8 | 89.8% | **89.6%** |
+| 16 | 92.6% | 93.2% |
+
+Between-person variation is real but small against the effect — at k=8 the
+three subjects sit at 89.8% / 92.0% / 85.7%, and at k=2 at 81.4% / 85.6% /
+75.7%. **The lowest single person at the most articulation-favourable horizon
+is still 75.7%.**
 
 **But the magnitude is dataset-dependent, and the "~95%" figure is
 OpenTouch-specific.** Two differences worth stating plainly rather than
@@ -981,12 +998,14 @@ whole-hand rotation, 81–96% of its energy depending on dataset and horizon,
 measured on two independent datasets.* The correction argument is unchanged and
 is now much harder to dismiss as a property of one capture setup.
 
-**Limits.** Subject-01 only, 1 of DexYCB's 10 subjects (02 and 03 downloading
-as of 08:00 — rerun the loader over the whole directory when they land and the
-numbers above will cover three people). One camera per take by design: all 8
-views of a grasp are related by a rigid transform, so their rigid shares are
-identical and including them would multiply apparent n by 8 while adding no
-information.
+**Limits.** Three of DexYCB's ten subjects. Adding subjects 02 and 03 changed
+the pooled median by ≤0.6 points at every horizon, so the remaining seven are
+unlikely to move it, but they are available if a reviewer asks (~12 GB of
+download each, ~250 MB of labels kept; see `scripts/load_public_hands.py` and
+the fetch scripts under `/scratch/bashar/datasets/dexycb/`). One camera per
+take by design: all 8 views of a grasp are related by a rigid transform, so
+their rigid shares are identical and including them would multiply apparent n
+by 8 while adding no information.
 
 > **The joint-order guard earned its keep here.** DexYCB's `joint_3d` arrives
 > in MediaPipe order, not MANO, because `manopth` reorders internally before
