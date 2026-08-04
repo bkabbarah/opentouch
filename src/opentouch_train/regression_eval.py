@@ -72,6 +72,7 @@ def _read_checkpoint_meta(path) -> dict:
         "epoch": ckpt.get("epoch"),
         "horizon_k": ckpt.get("horizon_k"),
         "target_mode": ckpt.get("target_mode"),
+        "tactile_reduce": ckpt.get("tactile_reduce", "none"),
         "pose_only": ckpt.get("pose_only"),
         "shuffle_tactile": ckpt.get("shuffle_tactile"),
         "motion_threshold": ckpt.get("motion_threshold"),
@@ -264,6 +265,7 @@ def main(argv=None):
         hidden_dim=meta["hidden_dim"],
         tactile_correction_input=meta["tactile_correction_input"],
         fusion=meta["fusion"],
+        tactile_reduce=meta.get("tactile_reduce", "none"),
         output_dim=1 if meta["target_mode"] in ("grip_aperture", "motion_onset") else POSE_DIM,
     ).to(device)
 

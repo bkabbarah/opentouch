@@ -205,6 +205,7 @@ class PoseTransitionRegressor(nn.Module):
         hidden_dim: int = 128,
         tactile_correction_input: str = "pose_tactile",
         fusion: str = "gate",
+        tactile_reduce: str = "none",
         output_dim: int = POSE_DIM,
     ) -> None:
         super().__init__()
@@ -217,6 +218,31 @@ class PoseTransitionRegressor(nn.Module):
         self.use_tactile = use_tactile
         self.tactile_emb_dim = tactile_emb_dim
         self.hidden_dim = hidden_dim
+
+        # HOW MUCH OF THE TACTILE SIGNAL IS ACTUALLY USED.
+        #
+        # 'none' (default, and every historical run) passes the per-taxel
+        # pressure map through untouched.
+        #
+        # 'scalar' replaces each frame's map with its SPATIAL MEAN, broadcast
+        # back to the original shape. Total pressure per frame is preserved
+        # exactly; all spatial structure is destroyed; temporal structure is
+        # untouched. The encoder, its parameter count and the whole downstream
+        # path are identical, so a comparison between 'none' and 'scalar'
+        # isolates exactly one thing: whether WHERE the hand is touching
+        # matters, or only WHETHER and HOW HARD.
+        #
+        # This exists because three separate observations are all consistent
+        # with the tactile benefit being one scalar: it is learnable within
+        # 2-4 epochs (HANDOFF 2.22), a random frozen encoder captures all of
+        # it (2.32), and deranging the temporal pairing destroys it. If
+        # 'scalar' matches 'none', the tactile representation in this project
+        # is a contact magnitude and nothing more.
+        if tactile_reduce not in ("none", "scalar"):
+            raise ValueError(
+                f"tactile_reduce must be 'none' or 'scalar', got {tactile_reduce!r}"
+            )
+        self.tactile_reduce = tactile_reduce
 
         # Keep it simple: a small MLP head, not a new deep backbone -- the
         # tactile side already has its own encoder (CNNetEmbedding), and the
@@ -332,6 +358,25 @@ class PoseTransitionRegressor(nn.Module):
             return flat.view(b, NUM_KEYPOINTS, COORD_DIM)
         return flat
 
+    def _reduce_tactile(self, tactile_pressure: torch.Tensor) -> torch.Tensor:
+        """Apply the tactile_reduce ablation. See __init__ for why.
+
+        'scalar' averages over the two spatial (taxel-grid) axes and broadcasts
+        the result back, so the per-frame TOTAL is preserved bit-for-bit while
+        every spatial pattern is flattened. Made contiguous because the encoder
+        reshapes its input, and a view produced by expand cannot be reshaped.
+        """
+        if self.tactile_reduce == "none":
+            return tactile_pressure
+        if tactile_pressure.dim() < 2:
+            raise ValueError(
+                "tactile_reduce='scalar' needs at least two spatial axes, got "
+                f"shape {tuple(tactile_pressure.shape)}"
+            )
+        spatial = (-2, -1)
+        mean = tactile_pressure.mean(dim=spatial, keepdim=True)
+        return mean.expand_as(tactile_pressure).contiguous()
+
     def forward(
         self,
         pose_t: torch.Tensor,
@@ -354,7 +399,7 @@ class PoseTransitionRegressor(nn.Module):
                 "use_tactile=True requires a tactile_pressure tensor, got None"
             )
             hidden = self.head[:6](pose_flat)
-            tactile_embed = self.tactile_encoder(tactile_pressure)
+            tactile_embed = self.tactile_encoder(self._reduce_tactile(tactile_pressure))
             if self.tactile_correction_input == "pose_tactile":
                 mod_input = torch.cat([pose_flat, tactile_embed], dim=-1)
             else:
@@ -369,7 +414,7 @@ class PoseTransitionRegressor(nn.Module):
             assert tactile_pressure is not None, (
                 "use_tactile=True requires a tactile_pressure tensor, got None"
             )
-            tactile_embed = self.tactile_encoder(tactile_pressure)
+            tactile_embed = self.tactile_encoder(self._reduce_tactile(tactile_pressure))
             if self.tactile_correction_input == "pose_tactile":
                 correction_input = torch.cat([pose_flat, tactile_embed], dim=-1)
             else:

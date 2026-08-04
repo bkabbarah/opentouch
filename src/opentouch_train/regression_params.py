@@ -96,6 +96,13 @@ def parse_regression_args(args):
              "that freezing noise can never happen by accident.",
     )
     parser.add_argument(
+        "--tactile-reduce", type=str, default="none", choices=["none", "scalar"],
+        help="'scalar' replaces each tactile frame with its spatial mean, "
+             "broadcast back. Total pressure per frame is preserved exactly and "
+             "all spatial structure is destroyed, so 'none' vs 'scalar' isolates "
+             "whether WHERE the hand touches matters or only WHETHER and HOW HARD.",
+    )
+    parser.add_argument(
         "--grad-clip-scope", type=str, default="global",
         choices=["global", "per_branch"],
         help="Scope of gradient-norm clipping. 'global' (default, and what every "

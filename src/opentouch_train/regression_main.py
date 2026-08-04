@@ -207,6 +207,7 @@ def main(args):
         hidden_dim=args.hidden_dim,
         tactile_correction_input=args.tactile_correction_input,
         fusion=args.fusion,
+        tactile_reduce=args.tactile_reduce,
         output_dim=1 if args.target_mode in ("grip_aperture", "motion_onset") else POSE_DIM,
     ).to(device)
 
@@ -263,6 +264,7 @@ def main(args):
                     # fails on an architecture difference rather than on the
                     # capacity mismatch it exists to catch.
                     fusion=args.fusion,
+                    tactile_reduce=args.tactile_reduce,
                     output_dim=1 if args.target_mode in ("grip_aperture", "motion_onset") else POSE_DIM,
                 )
                 # Parity is over TRAINABLE parameters, so the reference has to
@@ -401,6 +403,7 @@ def main(args):
                 # is a load_state_dict size mismatch rather than a silently
                 # wrong evaluation. Recorded so eval need not guess.
                 "tactile_correction_input": getattr(args, "tactile_correction_input", "pose_tactile"),
+                "tactile_reduce": getattr(args, "tactile_reduce", "none"),
                 "freeze_random_tactile_encoder": getattr(args, "freeze_random_tactile_encoder", False),
                 "fusion": getattr(args, "fusion", "gate"),
             }
