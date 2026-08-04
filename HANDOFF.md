@@ -980,6 +980,53 @@ it is the conservative one — and state that restricting to above-median motion
 raises it to 98.0% (OpenTouch) and 94.0% (DexYCB). Pre-empting this beats
 having it raised in review, and the answer runs in your favour.
 
+### 2.35 STAG positive control — the ablation DOES destroy spatial tactile information
+
+`results/results_stag_scalar_control.json`, `scripts/stag_scalar_control.py`.
+STAG (Sundaram et al., Nature 2019), 52,650 valid+balanced frames, 27 object
+classes, STAG's own `splitId`, 3 seeds.
+
+**The objection this answers.** §2.34 found that destroying all spatial
+structure costs only ~12% of the tactile benefit on grip aperture. The first
+thing a reviewer will ask is whether the ablation is simply weak — whether
+broadcasting the spatial mean removes anything usable at all. If it does not,
+§2.34 says nothing.
+
+**Same reduction, same 16x16 grid, a task where spatial structure is known to
+be essential:**
+
+| task | full tactile | scalar only | baseline | above-baseline retained |
+|---|---|---|---|---|
+| STAG object ID, 27-way | **27.8%** (28.4/27.7/27.3) | **5.0%** (5.1/4.7/5.2) | 3.7% | **5%** |
+| Grip aperture (§2.34, k=2) | +0.0776 AUC | +0.0700 AUC | — | **88%** |
+
+**The ablation takes STAG from clearly learning to essentially the
+majority-class baseline, and costs aperture prediction almost nothing.** So
+the reduction genuinely destroys spatial tactile information, and §2.34's null
+is a fact about the *task*, not an artifact of a weak ablation.
+
+**The claim this licenses.** *Spatial tactile structure encodes what the hand
+is holding; it does not measurably encode what the hand is about to do.* Both
+halves are measured, with the same ablation, on the same grid.
+
+> **BE HONEST ABOUT 27.8%.** STAG's paper reports ~76% on object
+> classification. This is not a reproduction and must not be presented as one:
+> it is single-frame classification on the 16x16 downsample with a small CNN
+> and 30 epochs, where STAG aggregates over multiple frames at 32x32. The
+> number is a *floor* that establishes the control does its job — 27.8% against
+> a 3.7% baseline with a seed spread of 1.1 points is unambiguous learning from
+> spatial structure. Do not quote it as STAG's accuracy.
+
+> **A broken first attempt, recorded because it nearly became a result.** The
+> initial run scored 5.9% against the 3.7% baseline with two of three seeds not
+> learning at all, which would have "confirmed" the hypothesis for entirely the
+> wrong reason. Cause: STAG's raw values sit in [0.115, 0.354] with std 0.008,
+> so an unnormalised CNN sees near-constant input. Nearest-class-centroid on
+> the same raw frames already reaches 22.6%, which is how the optimisation
+> failure was identified rather than accepted. Standardisation uses TRAIN
+> statistics only and, being a per-tensor affine map, cannot change what the
+> reduction does.
+
 ### 2.34 The tactile benefit is a PRESSURE TIME SERIES, not a spatial representation
 
 `results/results_aperture_scalar_k{2,8}_ss{42,1,2,3}.json`,
