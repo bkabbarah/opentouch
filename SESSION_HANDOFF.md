@@ -178,6 +178,20 @@ pretraining could be expected to learn at all.
 It also **subsumes contribution 2**: retrieval pretraining buys nothing (§2.32)
 because there is almost nothing spatial for it to learn.
 
+**The control that makes it credible (§2.35).** The same reduction, on the same
+16x16 grid, applied to STAG object classification: **27.8% → 5.0%** against a
+3.7% majority baseline — **5% of above-baseline accuracy retained, versus 88%
+on aperture**. So the ablation demonstrably destroys spatial tactile
+information, and the aperture null is a fact about the task rather than a weak
+ablation.
+
+**The claim both halves license:** *spatial tactile structure encodes what the
+hand is holding; it does not measurably encode what the hand is about to do.*
+
+Do **not** quote 27.8% as STAG's accuracy — their paper reports ~76%. This is
+single-frame, 16x16, small CNN, and serves only as a floor showing the control
+works.
+
 Limits: two horizons, one seed per cell, OpenTouch only, and the aperture
 target is rotation-invariant by construction.
 
