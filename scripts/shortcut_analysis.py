@@ -147,25 +147,21 @@ def main():
     gt_nonrigid = energy(all_target_variants(pose_t, pose_t + gt)["rigid_removed"]).sqrt()
     pred_nonrigid = energy(all_target_variants(pose_t, pose_t + pred)["rigid_removed"]).sqrt()
 
-    # THE NUMBER THAT MATTERS. Split the model's squared error into the part
-    # attributable to the rigid (rotational) component of the target and the
-    # part attributable to the non-rigid (articulation) component.
+    # WHAT THIS DOES AND DOES NOT SUPPORT. An earlier version of this script
+    # reported an "addressable fraction of MSE" as 1 - |rigid(gt)|^2/|pred-gt|^2,
+    # framing the target's rotational energy as an error floor every method
+    # pays. That metric is UNSOUND and has been removed: it returned negative
+    # values at k=8 and k=16, because the model's total error is smaller than
+    # the target's rotational energy, which means the model does partially
+    # track rotation and the two components are not orthogonal in the error.
+    # The rigid/non-rigid split is a per-sample Kabsch fit, not a fixed linear
+    # subspace, so squared errors do not decompose additively across it.
     #
-    # MSE is energy-weighted, so the MEAN rigid share governs it, not the
-    # median. If the model emits almost no rotation, the target's rotational
-    # energy passes straight into the error as a FLOOR that every method pays
-    # equally -- which compresses all method differences into whatever is
-    # left. That is a quantitative explanation for §2.22's observation that
-    # copy-zero is nearly unbeatable and everything fights over 8-9%.
+    # What IS sound is the comparison of composition: how rotational the
+    # target is, against how rotational the model's output is.
     gt_var = all_target_variants(pose_t, pose_t + gt)
-    err = pred - gt
-    total_sq = energy(err)
-    rigid_gt = gt - gt_var["rigid_removed"]        # the rotational part of the target
-    nonrigid_gt = gt_var["rigid_removed"]
-    # Error the model would still incur if it predicted the non-rigid part
-    # perfectly and continued to emit nothing for the rotational part.
-    floor_sq = energy(rigid_gt)
-    addressable = 1.0 - float(floor_sq.sum() / total_sq.sum()) if total_sq.sum() > 0 else float("nan")
+    rigid_gt = gt - gt_var["rigid_removed"]
+    energy_weighted_rigid_share = float(energy(rigid_gt).sum() / energy(gt).sum())
 
     report = {
         "checkpoint": args.checkpoint, "split": args.split,
@@ -178,10 +174,7 @@ def main():
         "nonrigid_magnitude_ratio": float(pred_nonrigid.median() / gt_nonrigid.median()),
         "predicted_motion_magnitude_ratio": float(
             energy(pred).sqrt().median() / energy(gt).sqrt().median()),
-        "mean_rigid_share_energy_weighted": float(
-            (energy(rigid_gt).sum() / energy(gt).sum())),
-        "frac_of_MSE_from_unpredicted_rotation": float(floor_sq.sum() / total_sq.sum()),
-        "addressable_fraction_of_MSE": addressable,
+        "energy_weighted_rigid_share_of_target": energy_weighted_rigid_share,
     }
 
     print("\n=== DOES THE MODEL LEARN THE ROTATION SHORTCUT? ===")
@@ -204,16 +197,13 @@ def main():
     print("the data it was trained on -- the signature of the shortcut. A non-rigid")
     print("magnitude far below 100% means it is barely predicting articulation at all.")
 
-    print("\n=== WHERE THE MSE ACTUALLY GOES ===")
-    print("rotational share of target energy (energy-weighted): %.1f%%"
-          % (100 * report["mean_rigid_share_energy_weighted"]))
-    print("share of this model's MSE that is UNPREDICTED ROTATION: %.1f%%"
-          % (100 * report["frac_of_MSE_from_unpredicted_rotation"]))
-    print("=> at most %.1f%% of the MSE is addressable by predicting articulation better."
-          % (100 * report["addressable_fraction_of_MSE"]))
-    print("Every method pays the rotational floor equally, so method differences are")
-    print("compressed into what is left. Compare with §2.22: pose-only beats copy-zero")
-    print("by 8-9%, which is the size of the addressable slice, not a modelling failure.")
+    print("\n=== COMPOSITION MISMATCH ===")
+    print("target is   %.1f%% rotational (energy-weighted)"
+          % (100 * report["energy_weighted_rigid_share_of_target"]))
+    print("model emits %.1f%% rotational output (median share)"
+          % (100 * report["prediction"]["median_rigid_share"]))
+    print("The dominant component of what is SCORED is not what the model PREDICTS.")
+    print("See HANDOFF 2.34 for what this does and does not license.")
 
     if args.out:
         with open(args.out, "w") as fh:
