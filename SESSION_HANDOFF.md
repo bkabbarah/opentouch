@@ -153,6 +153,34 @@ The target-correction consequence is unchanged and now rests on a
 three-encoder mean at four horizons (§2.27): corrected beats conventional
 ~4x at k=2/4/8.
 
+### Contribution 3 (NEW, 2026-08-04) — the sharpest thing in the project
+
+**~88% of what a 256-taxel array buys is available from its sum.** §2.34.
+
+Destroy every spatial pattern in the tactile map, keep only per-frame total
+pressure, and the benefit on grip aperture barely moves: +0.0700 vs +0.0776 at
+k=2, +0.0544 vs +0.0632 at k=8, scalar-only positive in **4/4 partitions at
+both horizons**. The spatial residual is +0.008 AUC, positive in 3/4 — below
+this project's own bar.
+
+State it as: *the tactile contribution is a one-dimensional contact-pressure
+time series; where on the hand the pressure falls does not measurably matter.*
+Not "a single number" — the encoder still sees 36 frames of it.
+
+**Why this is the strongest contribution.** It explains three results that
+previously had no common cause: the 2–4 epoch peak reproducing 25/25, a random
+encoder matching a pretrained one, and derangement destroying the effect. All
+three follow from a 1-D temporal signal and none require spatial structure.
+And it is a claim about tactile sensing for manipulation, not about this
+pipeline — with a direct implication for sensor design and for what tactile
+pretraining could be expected to learn at all.
+
+It also **subsumes contribution 2**: retrieval pretraining buys nothing (§2.32)
+because there is almost nothing spatial for it to learn.
+
+Limits: two horizons, one seed per cell, OpenTouch only, and the aperture
+target is rotation-invariant by construction.
+
 ### Contribution 2, and the risk attached to it
 
 **Contrastive retrieval quality is a poor proxy for downstream tactile

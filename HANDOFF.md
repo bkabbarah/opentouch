@@ -980,6 +980,65 @@ it is the conservative one — and state that restricting to above-median motion
 raises it to 98.0% (OpenTouch) and 94.0% (DexYCB). Pre-empting this beats
 having it raised in review, and the answer runs in your favour.
 
+### 2.34 The tactile benefit is a PRESSURE TIME SERIES, not a spatial representation
+
+`results/results_aperture_scalar_k{2,8}_ss{42,1,2,3}.json`,
+`scripts/tactile_scalar_ablation.sh`, `--tactile-reduce scalar`. 8 runs,
+0 errors, completed 2026-08-04 01:28. Random frozen encoder throughout, since
+§2.32 established it is equivalent to the pretrained one.
+
+**The ablation.** Each tactile frame is replaced by its spatial mean,
+broadcast back over the 16x16 taxel grid. Per-frame total pressure is
+preserved *exactly*; every spatial pattern is destroyed; temporal structure is
+untouched; the encoder and its parameter count are unchanged. Verified on the
+cluster: `tactile_reduce="none"` is **bit-identical** to the behaviour before
+the flag existed, so no historical result moves underneath the comparison.
+
+| k | full tactile | **scalar only** | difference | scalar recovers |
+|---|---|---|---|---|
+| 2 | +0.0776 | **+0.0700** | +0.0076 [−0.0014, +0.0157] | **90%** |
+| 8 | +0.0632 | **+0.0544** | +0.0089 [−0.0025, +0.0190] | **86%** |
+
+All figures are AUC over pose-only, epoch chosen on val by R², scored on TEST,
+mean over four participant partitions.
+
+**Scalar-only beats pose-only in 4/4 partitions at both horizons.** The
+spatial residual is +0.008 AUC and positive in only **3/4** — below the bar
+this project adopted after §2.19 flipped sign under redrawn partitions.
+
+**STATE IT PRECISELY.** Not "the benefit is a single number". The encoder still
+receives a **36-frame sequence** of that scalar, so what survives is a
+*one-dimensional contact-pressure time series* — how hard the hand is pressing,
+over time. What is destroyed and turns out not to matter is **where on the hand
+the pressure is distributed**, which is the entire justification for a
+taxel-array sensor over a single force reading.
+
+**This unifies three previously orphan observations**, each of which needs no
+spatial structure and all of which follow from a 1-D pressure signal:
+
+1. **Learnable in 2–4 epochs, then decays — 25/25 runs** (§2.22, §2.26). A
+   scalar time series is immediately exploitable and then overfits.
+2. **A random frozen encoder captures all of it** (§2.32, 8/16). Any
+   projection preserves a 1-D signal; only a learned one could preserve
+   spatial semantics, and there are none to preserve.
+3. **Deranging the temporal pairing destroys it entirely.** The signal *is*
+   temporal, so mispairing frames destroys exactly the informative part.
+
+Three separate results that previously had no common explanation now have one.
+
+**What this is worth.** It is a claim about tactile sensing for manipulation
+prediction, not about this pipeline: on the one task where touch demonstrably
+helps, ~88% of what a 256-taxel array buys is available from its sum. That has
+a direct implication for sensor design and for what tactile pretraining could
+even be expected to learn.
+
+**Limits.** Two horizons (k=2, k=8), one model seed per cell — matching the
+`rndfrz` arms they are compared against, which are also one seed. The residual
++0.008 is small enough that a second seed could move it either way; what it
+cannot plausibly do is overturn the ~88%. Measured on OpenTouch only, and the
+aperture target is rotation-invariant by construction, so this says nothing
+about targets where spatial contact might matter more.
+
 ### 2.33 RELATED WORK: what the field already knows, and what it does not
 
 Literature check run 2026-08-03 to test the load-bearing assumption behind

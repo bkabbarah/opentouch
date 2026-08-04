@@ -1,0 +1,24 @@
+{
+  "per_run": {
+    "rndscalar": [
+      {
+        "run": "tsc2_2_rndscalar_k2_s1",
+        "best_val_epoch": 52,
+        "val_r2": 0.073,
+        "val_auc": 0.5865,
+        "test_r2": 0.054718,
+        "test_auc": 0.601621
+      }
+    ]
+  },
+  "means": {
+    "rndscalar": {
+      "test_r2": 0.054718,
+      "test_auc": 0.601621,
+      "epochs": [
+        52
+      ]
+    }
+  },
+  "contrasts": {}
+}
