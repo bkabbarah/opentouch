@@ -51,6 +51,16 @@ p.add_argument("--all-variants", action="store_true",
                help="Also probe the two intermediate targets (rotation removed but world "
                     "axes; rotation kept but palm axes), which separates the frame change "
                     "from the rotation removal instead of confounding them.")
+p.add_argument("--tactile-reduce", default="none", choices=["none", "scalar"],
+               help="'scalar' replaces each tactile frame with its spatial mean, "
+                    "broadcast back over the taxel grid: per-frame TOTAL pressure is "
+                    "preserved exactly and every spatial pattern is destroyed, while "
+                    "temporal structure and the encoder are untouched. HANDOFF 2.34 "
+                    "found this costs only ~12% of the tactile benefit on grip "
+                    "aperture, and 2.35 confirms via STAG that the reduction really "
+                    "does destroy spatial information. Aperture is rotation-invariant "
+                    "by construction, so this probe -- whose target is NOT -- is the "
+                    "test of whether that null generalises.")
 p.add_argument("--random-tactile-encoder", action="store_true",
                help="Replace the pretrained tactile encoder with a RANDOMLY INITIALISED "
                     "frozen one, leaving the pose encoder pretrained. The control for "
@@ -99,8 +109,15 @@ def prep(name, threshold):
     tgts = all_target_variants(pt, pf)
     moving = (fingertip_displacement(tgts["wrist_translation_removed"]) >= threshold).numpy()
     cfi = _causal_frame_indices(vt, a.causal_window); perm = _make_derangement(n, seed=a.split_seed)
-    tc = encode_causal(tac, ds._tactile, widx, tv, cfi, a.batch_size, dev).numpy()
-    ts = encode_causal(tac, ds._tactile, perm[widx], tv, cfi, a.batch_size, dev).numpy()
+    tactile = ds._tactile
+    if a.tactile_reduce == "scalar":
+        # Same reduction as PoseTransitionRegressor._reduce_tactile. Applied to
+        # the shared tensor so the real and deranged encodings are treated
+        # identically -- reducing only one of them would confound the ablation
+        # with the derangement control.
+        tactile = tactile.mean(dim=(-2, -1), keepdim=True).expand_as(tactile).contiguous()
+    tc = encode_causal(tac, tactile, widx, tv, cfi, a.batch_size, dev).numpy()
+    ts = encode_causal(tac, tactile, perm[widx], tv, cfi, a.batch_size, dev).numpy()
     pe = encode_pose_causal(pen, ds._pose, widx, tv, cfi, a.batch_size, dev).numpy()
     log.info("[%s] samples=%d moving=%d" % (name, len(widx), moving.sum()))
     return dict(tgts=tgts, moving=moving, tactile=tc, shuf=ts, pose_emb=pe), threshold
@@ -141,6 +158,7 @@ AXES = ALL_AXES if a.all_variants else {
 out = {"horizon_k": a.horizon_k, "sequence_length": a.sequence_length,
        "split_group_by": a.split_group_by, "checkpoint": a.checkpoint,
        "random_tactile_encoder": a.random_tactile_encoder,
+       "tactile_reduce": a.tactile_reduce,
        "eval_split": a.eval_split,
        "n_val_moving": int(va["moving"].sum()), "results": {}}
 
