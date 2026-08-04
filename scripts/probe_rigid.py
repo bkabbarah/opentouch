@@ -51,6 +51,16 @@ p.add_argument("--all-variants", action="store_true",
                help="Also probe the two intermediate targets (rotation removed but world "
                     "axes; rotation kept but palm axes), which separates the frame change "
                     "from the rotation removal instead of confounding them.")
+p.add_argument("--encoder-seed", type=int, default=None,
+               help="Seed the RANDOM tactile encoder's initialisation ONLY. Without it "
+                    "the encoder is built from ambient RNG state, so every --random-"
+                    "tactile-encoder run used a different, unrecorded encoder and none "
+                    "of them can be regenerated. Held separate from --split-seed on "
+                    "purpose: varying the encoder must not also move the data split or "
+                    "the derangement, or the contrast confounds encoder variance with "
+                    "split variance. Pairing a full run and a scalar run on the SAME "
+                    "encoder-seed removes encoder-init variance from the comparison "
+                    "entirely.")
 p.add_argument("--tactile-reduce", default="none", choices=["none", "scalar"],
                help="'scalar' replaces each tactile frame with its spatial mean, "
                     "broadcast back over the taxel grid: per-frame TOTAL pressure is "
@@ -78,6 +88,8 @@ dev = torch.device(a.device)
 
 if a.random_tactile_encoder:
     from opentouch.tactile_encoder import CNNetEmbedding
+    if a.encoder_seed is not None:
+        torch.manual_seed(a.encoder_seed)
     tac = CNNetEmbedding(emb_dim=a.emb_dim).to(dev).eval()
     for _p in tac.parameters():
         _p.requires_grad_(False)
@@ -159,6 +171,7 @@ out = {"horizon_k": a.horizon_k, "sequence_length": a.sequence_length,
        "split_group_by": a.split_group_by, "checkpoint": a.checkpoint,
        "random_tactile_encoder": a.random_tactile_encoder,
        "tactile_reduce": a.tactile_reduce,
+       "encoder_seed": a.encoder_seed,
        "eval_split": a.eval_split,
        "n_val_moving": int(va["moving"].sum()), "results": {}}
 
