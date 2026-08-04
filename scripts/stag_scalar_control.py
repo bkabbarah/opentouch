@@ -101,7 +101,7 @@ def run(x_tr, y_tr, x_te, y_te, n_classes, reduce_mode, epochs, device, seed):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stag-dir", default="/scratch/bashar/stag")
-    ap.add_argument("--epochs", type=int, default=12)
+    ap.add_argument("--epochs", type=int, default=30)
     ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--out", default=None)
@@ -122,6 +122,21 @@ def main():
     y_t = torch.from_numpy(y)
     x_tr, y_tr = x[tr_mask], y_t[tr_mask]
     x_te, y_te = x[te_mask], y_t[te_mask]
+
+    # STANDARDISE, and this is load-bearing. The raw STAG values sit in
+    # [0.115, 0.354] with std 0.008, so an unnormalised CNN sees essentially
+    # constant input and never leaves the majority-class solution -- the first
+    # version of this control scored 5.9% against a 3.7% baseline with two of
+    # three seeds not learning at all, which is a broken control, not a
+    # finding. Statistics come from TRAIN only.
+    #
+    # Applied BEFORE the scalar reduction, and it is an affine per-tensor
+    # transform, so it cannot change what the reduction does: the spatial mean
+    # of a standardised frame is the standardised spatial mean.
+    mu, sd = x_tr.mean(), x_tr.std()
+    x_tr = (x_tr - mu) / sd
+    x_te = (x_te - mu) / sd
+    print("standardised with train mean %.4f std %.5f" % (float(mu), float(sd)))
 
     chance = float(np.bincount(y[te_mask]).max() / te_mask.sum())
     print("\n=== STAG: POSITIVE CONTROL FOR THE SCALAR ABLATION ===")
