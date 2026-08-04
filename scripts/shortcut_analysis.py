@@ -147,6 +147,26 @@ def main():
     gt_nonrigid = energy(all_target_variants(pose_t, pose_t + gt)["rigid_removed"]).sqrt()
     pred_nonrigid = energy(all_target_variants(pose_t, pose_t + pred)["rigid_removed"]).sqrt()
 
+    # THE NUMBER THAT MATTERS. Split the model's squared error into the part
+    # attributable to the rigid (rotational) component of the target and the
+    # part attributable to the non-rigid (articulation) component.
+    #
+    # MSE is energy-weighted, so the MEAN rigid share governs it, not the
+    # median. If the model emits almost no rotation, the target's rotational
+    # energy passes straight into the error as a FLOOR that every method pays
+    # equally -- which compresses all method differences into whatever is
+    # left. That is a quantitative explanation for §2.22's observation that
+    # copy-zero is nearly unbeatable and everything fights over 8-9%.
+    gt_var = all_target_variants(pose_t, pose_t + gt)
+    err = pred - gt
+    total_sq = energy(err)
+    rigid_gt = gt - gt_var["rigid_removed"]        # the rotational part of the target
+    nonrigid_gt = gt_var["rigid_removed"]
+    # Error the model would still incur if it predicted the non-rigid part
+    # perfectly and continued to emit nothing for the rotational part.
+    floor_sq = energy(rigid_gt)
+    addressable = 1.0 - float(floor_sq.sum() / total_sq.sum()) if total_sq.sum() > 0 else float("nan")
+
     report = {
         "checkpoint": args.checkpoint, "split": args.split,
         "target_mode": meta["target_mode"], "horizon_k": meta["horizon_k"],
@@ -158,6 +178,10 @@ def main():
         "nonrigid_magnitude_ratio": float(pred_nonrigid.median() / gt_nonrigid.median()),
         "predicted_motion_magnitude_ratio": float(
             energy(pred).sqrt().median() / energy(gt).sqrt().median()),
+        "mean_rigid_share_energy_weighted": float(
+            (energy(rigid_gt).sum() / energy(gt).sum())),
+        "frac_of_MSE_from_unpredicted_rotation": float(floor_sq.sum() / total_sq.sum()),
+        "addressable_fraction_of_MSE": addressable,
     }
 
     print("\n=== DOES THE MODEL LEARN THE ROTATION SHORTCUT? ===")
@@ -179,6 +203,17 @@ def main():
     print("\nA POSITIVE gap means the model's output is MORE rotation-dominated than")
     print("the data it was trained on -- the signature of the shortcut. A non-rigid")
     print("magnitude far below 100% means it is barely predicting articulation at all.")
+
+    print("\n=== WHERE THE MSE ACTUALLY GOES ===")
+    print("rotational share of target energy (energy-weighted): %.1f%%"
+          % (100 * report["mean_rigid_share_energy_weighted"]))
+    print("share of this model's MSE that is UNPREDICTED ROTATION: %.1f%%"
+          % (100 * report["frac_of_MSE_from_unpredicted_rotation"]))
+    print("=> at most %.1f%% of the MSE is addressable by predicting articulation better."
+          % (100 * report["addressable_fraction_of_MSE"]))
+    print("Every method pays the rotational floor equally, so method differences are")
+    print("compressed into what is left. Compare with §2.22: pose-only beats copy-zero")
+    print("by 8-9%, which is the size of the addressable slice, not a modelling failure.")
 
     if args.out:
         with open(args.out, "w") as fh:
