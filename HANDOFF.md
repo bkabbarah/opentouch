@@ -980,6 +980,68 @@ it is the conservative one — and state that restricting to above-median motion
 raises it to 98.0% (OpenTouch) and 94.0% (DexYCB). Pre-empting this beats
 having it raised in review, and the answer runs in your favour.
 
+### 2.33 RELATED WORK: what the field already knows, and what it does not
+
+Literature check run 2026-08-03 to test the load-bearing assumption behind
+contribution 1 — that the wrist-relative target is actually *standard*. The
+answer is partly yes and partly no, and the framing has to change.
+
+**WHAT THE FIELD ALREADY KNOWS. Do not claim otherwise.** Procrustes-aligned
+MPJPE exists precisely to strip rotation. Root-relative alignment "removes
+ambiguity in translation" only; Procrustes "removes ambiguity in translation,
+**rotation**, and scale, thus focusing specifically on **articulation**." One
+source states our qualitative argument almost verbatim: two predictions with
+equal Procrustes-aligned error but different MPJPE differ in global wrist
+rotation and scale, not in finger articulation.
+
+**So "nobody realises root-relative contains rotation" is FALSE and must not
+be written.** A reviewer will know PA-MPJPE.
+
+**The literature splits in two, and only one half is exposed.**
+
+*Group A — MANO-parameter methods. Our critique does NOT apply.* MEgoHand
+(arXiv 2505.16602) outputs wrist rotation `r` as a parameter separate from
+finger rotations `θ`, and reports MPJPE **and** MPJPE-PA. Articulation is
+separated by construction.
+
+*Group B — 3D-joint-position forecasting. Our critique applies directly:*
+
+| paper | target | metric | rotation removed? |
+|---|---|---|---|
+| EgoH4, *The Invisible EgoHand* (2504.08654) | 3D joint positions | **wrist-relative MPJPE** | no — only camera canonicalisation to frame 0 |
+| EggHand (2605.07642) | 3D joint positions | wrist-relative MPJPE | no — has an explicit **"wrist-centered relative loss"** term |
+
+Both are 2025–26. This is a live subfield using exactly the target measured in
+§2.25/§2.28/§2.30.
+
+**WHAT IS ACTUALLY NEW — and it is the quantification, not the concept.** A
+targeted search for any prior measurement of the rotation-versus-articulation
+split found nothing. Novel here:
+
+1. **The magnitude** — 82–96% of the wrist-relative delta's energy, three
+   datasets, with motion-sensitivity robustness (§2.29).
+2. **The temporal framing.** Procrustes is applied per-frame in *estimation*,
+   aligning a prediction to its ground truth. Our quantity is the rotation
+   share of the *change between t and t+k*. Related, not the same, and the
+   estimation convention is not applied to forecasting targets.
+3. **The consequence** — a downstream conclusion inverts once corrected.
+
+**HOW TO FRAME CONTRIBUTION 1.** Not "the field is measuring the wrong thing".
+Instead: *wrist-relative MPJPE is the standard target and metric in 3D-joint
+hand forecasting; we measure that 82–96% of what it scores is whole-hand
+rotation rather than articulation, on three independent datasets; the
+community's own Procrustes convention removes this in estimation but is not
+applied to forecasting targets; and correcting it flips a conclusion.*
+
+**Pre-empt the obvious review in the introduction** — *"isn't this just
+Procrustes alignment?"* Answer: conceptually yes, and that is the point. The
+tool exists, it is not applied here, and nobody had measured what it costs.
+
+**Timing.** Uni-Hand (2511.12878) argues hand-*centre* trajectory prediction is
+"excessively coarse-grained, incapable of representing hand pose variations".
+The field is moving to full-pose forecasting now, which is exactly where this
+bites.
+
 ### 2.32 Retrieval pretraining buys NOTHING on grip aperture — and the shuffled control is not encoder-neutral
 
 `results/results_aperture_randenc_summary.json`,
