@@ -1,0 +1,644 @@
+{
+  "cells": {
+    "k2_ss42": {
+      "pretrained_frz": {
+        "test_r2": 0.134135,
+        "test_auc": 0.650854,
+        "epochs": [
+          6
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": -0.010337,
+        "test_auc": 0.52172,
+        "epochs": [
+          2
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.071695,
+        "test_auc": 0.622112,
+        "epochs": [
+          60
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.018385,
+        "test_auc": 0.543993,
+        "epochs": [
+          50
+        ]
+      },
+      "pre_capacity_test_auc": 0.12913400000000008,
+      "rnd_capacity_test_auc": 0.07811900000000005,
+      "pre_minus_rnd_test_auc": 0.028742000000000045,
+      "pre_capacity_test_r2": 0.14447200000000002,
+      "rnd_capacity_test_r2": 0.053309999999999996,
+      "pre_minus_rnd_test_r2": 0.06244000000000001
+    },
+    "k2_ss1": {
+      "pretrained_frz": {
+        "test_r2": 0.121033,
+        "test_auc": 0.61934,
+        "epochs": [
+          12
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": -0.007049,
+        "test_auc": 0.498435,
+        "epochs": [
+          14
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.087281,
+        "test_auc": 0.608214,
+        "epochs": [
+          60
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.025781,
+        "test_auc": 0.54864,
+        "epochs": [
+          58
+        ]
+      },
+      "pre_capacity_test_auc": 0.12090499999999998,
+      "rnd_capacity_test_auc": 0.059574000000000016,
+      "pre_minus_rnd_test_auc": 0.01112599999999997,
+      "pre_capacity_test_r2": 0.128082,
+      "rnd_capacity_test_r2": 0.0615,
+      "pre_minus_rnd_test_r2": 0.033752000000000004
+    },
+    "k2_ss2": {
+      "pretrained_frz": {
+        "test_r2": 0.129366,
+        "test_auc": 0.622892,
+        "epochs": [
+          8
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": 0.015131,
+        "test_auc": 0.527471,
+        "epochs": [
+          10
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.089094,
+        "test_auc": 0.617394,
+        "epochs": [
+          56
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.027616,
+        "test_auc": 0.537761,
+        "epochs": [
+          50
+        ]
+      },
+      "pre_capacity_test_auc": 0.09542099999999998,
+      "rnd_capacity_test_auc": 0.07963299999999995,
+      "pre_minus_rnd_test_auc": 0.005498000000000003,
+      "pre_capacity_test_r2": 0.114235,
+      "rnd_capacity_test_r2": 0.061478000000000005,
+      "pre_minus_rnd_test_r2": 0.040272
+    },
+    "k2_ss3": {
+      "pretrained_frz": {
+        "test_r2": 0.17546,
+        "test_auc": 0.631838,
+        "epochs": [
+          10
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": 0.018622,
+        "test_auc": 0.531032,
+        "epochs": [
+          18
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.114666,
+        "test_auc": 0.635775,
+        "epochs": [
+          58
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.024568,
+        "test_auc": 0.549495,
+        "epochs": [
+          60
+        ]
+      },
+      "pre_capacity_test_auc": 0.10080600000000006,
+      "rnd_capacity_test_auc": 0.08628000000000002,
+      "pre_minus_rnd_test_auc": -0.003936999999999968,
+      "pre_capacity_test_r2": 0.156838,
+      "rnd_capacity_test_r2": 0.09009800000000001,
+      "pre_minus_rnd_test_r2": 0.060794
+    },
+    "k4_ss42": {
+      "pretrained_frz": {
+        "test_r2": 0.142083,
+        "test_auc": 0.664111,
+        "epochs": [
+          6
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": 0.003454,
+        "test_auc": 0.520331,
+        "epochs": [
+          4
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.114482,
+        "test_auc": 0.639148,
+        "epochs": [
+          48
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.052557,
+        "test_auc": 0.567309,
+        "epochs": [
+          60
+        ]
+      },
+      "pre_capacity_test_auc": 0.14378000000000002,
+      "rnd_capacity_test_auc": 0.0718390000000001,
+      "pre_minus_rnd_test_auc": 0.024962999999999957,
+      "pre_capacity_test_r2": 0.13862899999999997,
+      "rnd_capacity_test_r2": 0.061925,
+      "pre_minus_rnd_test_r2": 0.027600999999999987
+    },
+    "k4_ss1": {
+      "pretrained_frz": {
+        "test_r2": 0.103111,
+        "test_auc": 0.6029,
+        "epochs": [
+          2
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": 0.023629,
+        "test_auc": 0.540591,
+        "epochs": [
+          4
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.129404,
+        "test_auc": 0.627406,
+        "epochs": [
+          60
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.055111,
+        "test_auc": 0.57566,
+        "epochs": [
+          52
+        ]
+      },
+      "pre_capacity_test_auc": 0.06230899999999995,
+      "rnd_capacity_test_auc": 0.05174600000000007,
+      "pre_minus_rnd_test_auc": -0.024506000000000028,
+      "pre_capacity_test_r2": 0.079482,
+      "rnd_capacity_test_r2": 0.074293,
+      "pre_minus_rnd_test_r2": -0.026292999999999997
+    },
+    "k4_ss2": {
+      "pretrained_frz": {
+        "test_r2": 0.148601,
+        "test_auc": 0.642576,
+        "epochs": [
+          6
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": 0.005619,
+        "test_auc": 0.504694,
+        "epochs": [
+          6
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.122332,
+        "test_auc": 0.63768,
+        "epochs": [
+          54
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.052915,
+        "test_auc": 0.561023,
+        "epochs": [
+          56
+        ]
+      },
+      "pre_capacity_test_auc": 0.13788200000000006,
+      "rnd_capacity_test_auc": 0.07665699999999998,
+      "pre_minus_rnd_test_auc": 0.0048960000000000115,
+      "pre_capacity_test_r2": 0.142982,
+      "rnd_capacity_test_r2": 0.069417,
+      "pre_minus_rnd_test_r2": 0.026269000000000015
+    },
+    "k4_ss3": {
+      "pretrained_frz": {
+        "test_r2": 0.223194,
+        "test_auc": 0.654044,
+        "epochs": [
+          4
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": 0.025813,
+        "test_auc": 0.541184,
+        "epochs": [
+          4
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.144423,
+        "test_auc": 0.649795,
+        "epochs": [
+          50
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.047865,
+        "test_auc": 0.564242,
+        "epochs": [
+          58
+        ]
+      },
+      "pre_capacity_test_auc": 0.11285999999999996,
+      "rnd_capacity_test_auc": 0.08555299999999999,
+      "pre_minus_rnd_test_auc": 0.004248999999999947,
+      "pre_capacity_test_r2": 0.197381,
+      "rnd_capacity_test_r2": 0.096558,
+      "pre_minus_rnd_test_r2": 0.07877100000000001
+    },
+    "k8_ss42": {
+      "pretrained_frz": {
+        "test_r2": 0.18661266666666668,
+        "test_auc": 0.6649476666666666,
+        "epochs": [
+          4,
+          4,
+          4
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": -0.0034103333333333334,
+        "test_auc": 0.5168893333333333,
+        "epochs": [
+          4,
+          4,
+          4
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.174421,
+        "test_auc": 0.661408,
+        "epochs": [
+          54
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.100534,
+        "test_auc": 0.599349,
+        "epochs": [
+          54
+        ]
+      },
+      "pre_capacity_test_auc": 0.1480583333333333,
+      "rnd_capacity_test_auc": 0.062058999999999975,
+      "pre_minus_rnd_test_auc": 0.0035396666666666077,
+      "pre_capacity_test_r2": 0.190023,
+      "rnd_capacity_test_r2": 0.073887,
+      "pre_minus_rnd_test_r2": 0.012191666666666684
+    },
+    "k8_ss1": {
+      "pretrained_frz": {
+        "test_r2": 0.10941100000000001,
+        "test_auc": 0.6096705,
+        "epochs": [
+          4,
+          2
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": 0.02873,
+        "test_auc": 0.5359365,
+        "epochs": [
+          6,
+          4
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.184605,
+        "test_auc": 0.64288,
+        "epochs": [
+          56
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.117823,
+        "test_auc": 0.60381,
+        "epochs": [
+          54
+        ]
+      },
+      "pre_capacity_test_auc": 0.07373399999999997,
+      "rnd_capacity_test_auc": 0.03907000000000005,
+      "pre_minus_rnd_test_auc": -0.0332095,
+      "pre_capacity_test_r2": 0.080681,
+      "rnd_capacity_test_r2": 0.066782,
+      "pre_minus_rnd_test_r2": -0.07519399999999998
+    },
+    "k8_ss2": {
+      "pretrained_frz": {
+        "test_r2": 0.0916955,
+        "test_auc": 0.6571255,
+        "epochs": [
+          2,
+          4
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": 0.025168,
+        "test_auc": 0.558179,
+        "epochs": [
+          4,
+          4
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.155452,
+        "test_auc": 0.6636,
+        "epochs": [
+          16
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.025741,
+        "test_auc": 0.580515,
+        "epochs": [
+          46
+        ]
+      },
+      "pre_capacity_test_auc": 0.09894650000000005,
+      "rnd_capacity_test_auc": 0.08308499999999996,
+      "pre_minus_rnd_test_auc": -0.006474499999999939,
+      "pre_capacity_test_r2": 0.0665275,
+      "rnd_capacity_test_r2": 0.12971100000000002,
+      "pre_minus_rnd_test_r2": -0.06375650000000001
+    },
+    "k8_ss3": {
+      "pretrained_frz": {
+        "test_r2": 0.193789,
+        "test_auc": 0.6712145,
+        "epochs": [
+          2,
+          4
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": 0.0038119999999999994,
+        "test_auc": 0.5513015,
+        "epochs": [
+          12,
+          14
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.175824,
+        "test_auc": 0.672992,
+        "epochs": [
+          30
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.092811,
+        "test_auc": 0.595845,
+        "epochs": [
+          54
+        ]
+      },
+      "pre_capacity_test_auc": 0.11991300000000005,
+      "rnd_capacity_test_auc": 0.07714700000000008,
+      "pre_minus_rnd_test_auc": -0.0017774999999999874,
+      "pre_capacity_test_r2": 0.18997699999999998,
+      "rnd_capacity_test_r2": 0.083013,
+      "pre_minus_rnd_test_r2": 0.01796499999999998
+    },
+    "k16_ss42": {
+      "pretrained_frz": {
+        "test_r2": 0.219546,
+        "test_auc": 0.7211825000000001,
+        "epochs": [
+          8,
+          4
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": -0.039129000000000004,
+        "test_auc": 0.5183665,
+        "epochs": [
+          6,
+          2
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.257546,
+        "test_auc": 0.718001,
+        "epochs": [
+          60
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.169501,
+        "test_auc": 0.648821,
+        "epochs": [
+          56
+        ]
+      },
+      "pre_capacity_test_auc": 0.2028160000000001,
+      "rnd_capacity_test_auc": 0.06918000000000002,
+      "pre_minus_rnd_test_auc": 0.0031815000000000593,
+      "pre_capacity_test_r2": 0.258675,
+      "rnd_capacity_test_r2": 0.08804499999999998,
+      "pre_minus_rnd_test_r2": -0.038000000000000006
+    },
+    "k16_ss1": {
+      "pretrained_frz": {
+        "test_r2": 0.1530795,
+        "test_auc": 0.672875,
+        "epochs": [
+          8,
+          2
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": 0.021753,
+        "test_auc": 0.574075,
+        "epochs": [
+          6,
+          6
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.23959,
+        "test_auc": 0.697378,
+        "epochs": [
+          60
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.160076,
+        "test_auc": 0.636626,
+        "epochs": [
+          38
+        ]
+      },
+      "pre_capacity_test_auc": 0.0988,
+      "rnd_capacity_test_auc": 0.06075200000000003,
+      "pre_minus_rnd_test_auc": -0.024503000000000053,
+      "pre_capacity_test_r2": 0.1313265,
+      "rnd_capacity_test_r2": 0.079514,
+      "pre_minus_rnd_test_r2": -0.08651049999999999
+    },
+    "k16_ss2": {
+      "pretrained_frz": {
+        "test_r2": 0.12385650000000001,
+        "test_auc": 0.692769,
+        "epochs": [
+          4,
+          2
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": 0.0006484999999999998,
+        "test_auc": 0.5483,
+        "epochs": [
+          4,
+          6
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.228184,
+        "test_auc": 0.704413,
+        "epochs": [
+          30
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.005317,
+        "test_auc": 0.586048,
+        "epochs": [
+          30
+        ]
+      },
+      "pre_capacity_test_auc": 0.14446899999999996,
+      "rnd_capacity_test_auc": 0.11836499999999994,
+      "pre_minus_rnd_test_auc": -0.011643999999999988,
+      "pre_capacity_test_r2": 0.12320800000000001,
+      "rnd_capacity_test_r2": 0.222867,
+      "pre_minus_rnd_test_r2": -0.10432749999999999
+    },
+    "k16_ss3": {
+      "pretrained_frz": {
+        "test_r2": 0.2145555,
+        "test_auc": 0.7115,
+        "epochs": [
+          4,
+          2
+        ]
+      },
+      "pretrained_frzshuf": {
+        "test_r2": 0.0631455,
+        "test_auc": 0.5849475,
+        "epochs": [
+          6,
+          4
+        ]
+      },
+      "random_frz": {
+        "test_r2": 0.233855,
+        "test_auc": 0.724342,
+        "epochs": [
+          46
+        ]
+      },
+      "random_frzshuf": {
+        "test_r2": 0.182824,
+        "test_auc": 0.650476,
+        "epochs": [
+          56
+        ]
+      },
+      "pre_capacity_test_auc": 0.12655250000000007,
+      "rnd_capacity_test_auc": 0.07386599999999999,
+      "pre_minus_rnd_test_auc": -0.01284200000000002,
+      "pre_capacity_test_r2": 0.15141000000000002,
+      "rnd_capacity_test_r2": 0.05103100000000002,
+      "pre_minus_rnd_test_r2": -0.019299499999999997
+    }
+  },
+  "by_horizon": {
+    "2": {
+      "n_partitions": 4,
+      "pre_capacity_auc": 0.11156650000000003,
+      "rnd_capacity_auc": 0.07590150000000001,
+      "pre_minus_rnd_auc": 0.010357250000000012,
+      "pre_minus_rnd_range": [
+        -0.003936999999999968,
+        0.028742000000000045
+      ],
+      "n_positive": 3
+    },
+    "4": {
+      "n_partitions": 4,
+      "pre_capacity_auc": 0.11420775,
+      "rnd_capacity_auc": 0.07144875000000003,
+      "pre_minus_rnd_auc": 0.002400499999999972,
+      "pre_minus_rnd_range": [
+        -0.024506000000000028,
+        0.024962999999999957
+      ],
+      "n_positive": 3
+    },
+    "8": {
+      "n_partitions": 4,
+      "pre_capacity_auc": 0.11016295833333334,
+      "rnd_capacity_auc": 0.06534025000000002,
+      "pre_minus_rnd_auc": -0.00948045833333333,
+      "pre_minus_rnd_range": [
+        -0.0332095,
+        0.0035396666666666077
+      ],
+      "n_positive": 1
+    },
+    "16": {
+      "n_partitions": 4,
+      "pre_capacity_auc": 0.14315937500000003,
+      "rnd_capacity_auc": 0.08054075,
+      "pre_minus_rnd_auc": -0.011451875,
+      "pre_minus_rnd_range": [
+        -0.024503000000000053,
+        0.0031815000000000593
+      ],
+      "n_positive": 1
+    }
+  }
+}

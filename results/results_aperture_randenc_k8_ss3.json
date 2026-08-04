@@ -1,0 +1,41 @@
+{
+  "per_run": {
+    "rndfrz": [
+      {
+        "run": "arn8_3_rndfrz_k8_s1",
+        "best_val_epoch": 30,
+        "val_r2": 0.1682,
+        "val_auc": 0.6442,
+        "test_r2": 0.175824,
+        "test_auc": 0.672992
+      }
+    ],
+    "rndfrzshuf": [
+      {
+        "run": "arn8_3_rndfrzshuf_k8_s1",
+        "best_val_epoch": 54,
+        "val_r2": 0.1085,
+        "val_auc": 0.6089,
+        "test_r2": 0.092811,
+        "test_auc": 0.595845
+      }
+    ]
+  },
+  "means": {
+    "rndfrz": {
+      "test_r2": 0.175824,
+      "test_auc": 0.672992,
+      "epochs": [
+        30
+      ]
+    },
+    "rndfrzshuf": {
+      "test_r2": 0.092811,
+      "test_auc": 0.595845,
+      "epochs": [
+        54
+      ]
+    }
+  },
+  "contrasts": {}
+}

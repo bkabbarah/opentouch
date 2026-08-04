@@ -161,7 +161,29 @@ the encoder ladder does not merely fail to improve, it **degrades** — mAP
 improves 2.6x (10.81 → 28.24) while the forecasting gain goes −8.97% → −6.90%
 (`results_encoder_ladder.json`).
 
-> **RISK 1 — RESOLVED 2026-08-03, and worse than expected. See §2.31.** The
+> **RISK 1 — FULLY RESOLVED 2026-08-03 22:07. Contribution 2 SURVIVES, in a
+> better form. See §2.32.** On grip aperture — AUC, 4 horizons x 4 partitions,
+> each encoder with its own control — a random frozen encoder captures the
+> *entire* downstream benefit. Pretrained minus random is **−0.0020 pooled,
+> positive in 8/16 cells**, a coin flip and 54x smaller than the +0.110
+> headline tactile effect. Meanwhile **both** encoders beat pose-only in
+> **16/16** cells. So: the tactile signal is worth ~+0.07 AUC, the learned
+> representation is worth ~0.00.
+>
+> **State it as:** *a randomly initialised frozen encoder captures the entire
+> downstream benefit; contrastive retrieval pretraining adds nothing measurable
+> on the task where tactile demonstrably helps.* Do NOT state it as "random
+> beats pretrained" — §2.31 shows that was an instrument artifact.
+>
+> §2.32 also found a methodological problem that reaches back into §2.19,
+> §2.22, §2.23 and §2.26: **the shuffled control is not encoder-neutral.**
+> Deranging a pretrained encoder's input costs up to 0.074 AUC against
+> pose-only; deranging a random encoder's costs ~0. So capacity-matched gaps
+> are inflated by however bad each arm's own control is, and comparing them
+> across encoders is invalid. **The advice below to lead with the
+> capacity-matched contrast is withdrawn — lead with touch − pose-only.**
+>
+> The superseded detail, kept because the failure mode is instructive: the
 > second leg of this contribution was "a random frozen encoder beats the
 > pretrained one on forecasting" (§2.19d), k=8, one seed. It was run at k=2
 > and k=4. **The delta-MSE instrument cannot answer the question at all**: its
@@ -201,11 +223,15 @@ with horizon" is wrong** and §2.24 now carries a superseded banner.
 | touch − shuffled (capacity-matched) | +0.112 | +0.114 | +0.110 | +0.143 |
 | touch − pose-only | **+0.088** | +0.072 | +0.054 | +0.069 |
 
-All 4/4 partitions at every horizon. **Lead with the capacity-matched
-contrast**: flat at +0.110–0.114 from 67–267 ms, positive in 16/16
-partition-horizon cells, never below +0.062 in any cell. The pose-only margin
-is largest at the *shortest* horizon and dips at k=8 — do not describe it as
-growing with lead time.
+All 4/4 partitions at every horizon.
+
+**Lead with touch − pose-only, not the capacity-matched contrast** (revised
+2026-08-03; see §2.32). The capacity-matched number is larger (+0.110 to
++0.143) but sits on a shuffled control that is itself **0.024–0.074 AUC worse
+than pose-only** — at k=16 roughly half the gap is the control failing rather
+than the arm succeeding. Report it alongside its branch cost, never alone.
+The pose-only margin is largest at the *shortest* horizon and dips at k=8 — do
+not describe it as growing with lead time.
 
 Also solid and cheap to state: **epoch selection reproduces 25/25.** Touch
 selects epochs 2–12, pose-only 30–60, touch strictly earlier in every run

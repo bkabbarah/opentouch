@@ -980,6 +980,78 @@ it is the conservative one — and state that restricting to above-median motion
 raises it to 98.0% (OpenTouch) and 94.0% (DexYCB). Pre-empting this beats
 having it raised in review, and the answer runs in your favour.
 
+### 2.32 Retrieval pretraining buys NOTHING on grip aperture — and the shuffled control is not encoder-neutral
+
+`results/results_aperture_randenc_summary.json`,
+`results/results_aperture_randenc_k*_ss*.json`. 32 runs, 0 errors, completed
+2026-08-03 22:07. Random frozen encoder and its own shuffled control, 4
+horizons x 4 partitions, epoch chosen on val by R², scored on TEST. Paired
+against the pretrained arms already in `results/`.
+
+This is the well-powered replacement for §2.31's uninterpretable MSE attempt:
+AUC on a scalar with a real sign, on the task where tactile demonstrably helps.
+
+**Result 1 — the tactile SIGNAL matters, at every horizon and every partition.**
+Both encoders beat pose-only in **16/16 cells**:
+
+| k | random − pose-only | positive | pretrained − pose-only |
+|---|---|---|---|
+| 2 | **+0.0776** | 4/4 | +0.0880 |
+| 4 | **+0.0691** | 4/4 | +0.0715 |
+| 8 | **+0.0632** | 4/4 | +0.0538 |
+| 16 | **+0.0805** | 4/4 | +0.0691 |
+
+**Result 2 — the LEARNED REPRESENTATION contributes nothing measurable.**
+Pretrained minus random, pooled over all 16 cells:
+
+> mean **−0.0020**, sd 0.0163, range [−0.0332, +0.0287], **positive 8/16**
+
+A coin flip, and **54x smaller than §2.23's headline +0.110 tactile effect**.
+By horizon it is +0.0104 (3/4), +0.0024 (3/4), −0.0095 (1/4), −0.0115 (1/4) —
+never 4/4, which is this project's own bar since §2.19 flipped sign.
+
+**This is contribution 2, properly founded.** Not "a random encoder beats the
+pretrained one" — §2.31 shows that claim was an instrument artifact — but the
+cleaner and stronger statement: *a randomly initialised frozen encoder
+captures the entire downstream benefit; contrastive retrieval pretraining adds
+nothing, on the one task where tactile demonstrably helps, across four
+horizons and four participant partitions.* The tactile signal is worth ~+0.07
+AUC. The learned representation is worth ~0.00.
+
+**Result 3, methodological, and it reaches back into §2.19/§2.22/§2.23/§2.26.**
+The capacity-matched contrast appears to say the opposite — the pretrained
+encoder's frz-minus-frzshuf gap exceeds the random encoder's in **16/16**
+cells (+0.11 vs +0.07). That is an artifact, and the branch cost shows why:
+
+| k | pretrained shuffled − pose-only | random shuffled − pose-only |
+|---|---|---|
+| 2 | **−0.0236** | +0.0017 |
+| 4 | **−0.0427** | −0.0023 |
+| 8 | **−0.0564** | −0.0021 |
+| 16 | **−0.0741** | −0.0000 |
+
+**Deranging a pretrained encoder's input is actively destructive; deranging a
+random encoder's input is free.** A pretrained encoder fed a derangement emits
+confidently wrong structured features the head has learned to trust. A random
+projection of garbage is merely uninformative. So the shuffled arm is *worse
+than having no tactile branch at all* — by up to 0.074 AUC — and any
+frz-minus-frzshuf gap is inflated by however bad its own control is.
+
+**The shuffled control is therefore not a neutral capacity-matched baseline;
+its severity depends on the encoder being controlled.** Comparing the
+capacity-matched gaps of two different encoders is invalid. This is §2.22's
+FiLM trap in a third setting, and it is the same mechanism that invalidated
+§2.31.
+
+**What to change.** §2.23/§2.26 report both contrasts, so their numbers stand.
+But the capacity-matched figure should never be quoted alone as "the tactile
+contribution": at k=16 the +0.143 gap sits on a control that is 0.074 AUC
+below pose-only, so roughly half of it is the control failing rather than the
+arm succeeding. **Quote touch − pose-only (+0.054 to +0.088, 4/4 at every
+horizon) as the headline, with the capacity-matched figure and its branch cost
+alongside.** Earlier advice in `SESSION_HANDOFF.md` §5 to lead with the
+capacity-matched contrast is withdrawn.
+
 ### 2.31 The delta-MSE instrument cannot answer the random-encoder question
 
 `results/results_randenc_horizons.json`, `scripts/randenc_horizons.sh`.
