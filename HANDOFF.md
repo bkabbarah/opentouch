@@ -1009,7 +1009,12 @@ removed from the contrast rather than estimated. k=2:
 | 2 | +0.0088 | +0.0186 | **+0.0098** |
 | **mean** | **+0.0088** (sd 0.0010) | **+0.0179** (sd 0.0005) | **+0.0091** (sd 0.0012), **3/3** |
 
-k=8, unseeded, same direction: full +0.0122, scalar **+0.0179**.
+k=8, now PAIRED and seeded (`results/results_probe_k8_RND_es{0,1,2}_{none,scalar}.json`,
+2026-08-05): full +0.0102 (sd 0.0019), scalar **+0.0163** (sd 0.0007), paired
+difference **+0.0061 (sd 0.0022), 3/3 positive**. Same direction as k=2 with a
+smaller magnitude — consistent with §2.27's finding that everything shrinks
+toward k=8. The earlier unseeded pair (+0.0122/+0.0179) sat within these
+distributions.
 
 **Three conclusions.**
 
@@ -1039,8 +1044,8 @@ marginal at short horizons stands.
 > was unfounded.** sd 0.0010 across three inits, essentially identical to the
 > pretrained encoders' 0.0011. Worth recording because the opposite was assumed.
 
-**Limits.** k=2 is paired and seeded; k=8 is a single unseeded pair and should
-be seeded before the k=8 magnitude is quoted. All on OpenTouch.
+**Limits.** Both horizons are now paired and seeded (3 encoder inits each).
+All on OpenTouch.
 
 ### 2.35 STAG positive control — the ablation DOES destroy spatial tactile information
 
