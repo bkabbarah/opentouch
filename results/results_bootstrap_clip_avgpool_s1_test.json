@@ -1,0 +1,30 @@
+{
+  "pose_to_tactile": {
+    "mean_mAP": 16.286,
+    "std_mAP": 1.021,
+    "ci_95_lo": 14.354,
+    "ci_95_hi": 18.364,
+    "n_bootstrap": 1000,
+    "n_test_samples": 1399,
+    "cluster_unit": "clip",
+    "n_clusters": 296,
+    "split": "test",
+    "split_group_by": "clip",
+    "split_group_by_source": "cli",
+    "gallery": "fixed (queries resampled only)"
+  },
+  "tactile_to_pose": {
+    "mean_mAP": 16.139,
+    "std_mAP": 0.985,
+    "ci_95_lo": 14.057,
+    "ci_95_hi": 18.059,
+    "n_bootstrap": 1000,
+    "n_test_samples": 1399,
+    "cluster_unit": "clip",
+    "n_clusters": 296,
+    "split": "test",
+    "split_group_by": "clip",
+    "split_group_by_source": "cli",
+    "gallery": "fixed (queries resampled only)"
+  }
+}

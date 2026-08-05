@@ -1705,10 +1705,13 @@ k=2/4/8/16), so this is not an artifact of one prediction distance.
 
 ### 2.20 Retrieval bootstrap CIs — open question #2 closed
 
-> **Caveat added 2026-08-04 (validation D6):** the clip-split avg-pool figure
-> (16.76 T→P) is a SINGLE run whose source run is not identifiable in `logs/`,
-> against a 3-seed GRU mean. A fresh 3-seed clip avg-pool baseline (seeds
-> 42/0/1, full provenance) is training; quote ratios against that once landed.
+> **Caveat added 2026-08-04, RESOLVED 2026-08-05:** the original clip-split
+> avg-pool 16.76 was a single run with no identifiable source run. A fresh
+> 3-seed baseline (seeds 42/0/1, full provenance,
+> `results/results_bootstrap_clip_avgpool_s{42,0,1}_test.json`) lands at
+> **T→P 16.46 ± 0.36, P→T 16.07 ± 0.29** — consistent with the old figure,
+> which is thereby vindicated. Final matched 3v3: **GRU/avg-pool = 2.80×
+> (T→P), 2.84× (P→T)** on the clip split. Quote these.
 
 Clip-clustered, 1000 draws, fixed gallery (queries resampled only). T→P mAP:
 
