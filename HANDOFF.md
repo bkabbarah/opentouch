@@ -980,6 +980,62 @@ it is the conservative one — and state that restricting to above-median motion
 raises it to 98.0% (OpenTouch) and 94.0% (DexYCB). Pre-empting this beats
 having it raised in review, and the answer runs in your favour.
 
+### 2.36 The scalar result GENERALISES — and spatial structure is actively harmful
+
+`results/results_probe_k2_RND_es{0,1,2}_{none,scalar}.json`,
+`results/results_probe_rigid_k8_RANDENC_SCALAR.json`. Direction probe, random
+frozen encoder, `--tactile-reduce scalar`, `--encoder-seed` paired.
+
+**Why this run existed.** §2.34's scalar result was measured on grip aperture,
+which is **rotation-invariant by construction**. The null could therefore have
+been a property of that target rather than of tactile sensing. The direction
+probe's target — the rigid-removed articulation direction in the palm frame —
+is not rotation-invariant, so it is the test of whether the claim generalises.
+
+**PAIRED design.** Each scalar run is matched to a full run on a
+*bit-identical* encoder (same `--encoder-seed`), so encoder-init variance is
+removed from the contrast rather than estimated. k=2:
+
+| encoder seed | full tactile | scalar only | difference |
+|---|---|---|---|
+| 0 | +0.0101 | +0.0176 | **+0.0075** |
+| 1 | +0.0075 | +0.0176 | **+0.0101** |
+| 2 | +0.0088 | +0.0186 | **+0.0098** |
+| **mean** | **+0.0088** (sd 0.0010) | **+0.0179** (sd 0.0005) | **+0.0091** (sd 0.0012), **3/3** |
+
+k=8, unseeded, same direction: full +0.0122, scalar **+0.0179**.
+
+**Three conclusions.**
+
+1. **§2.34 generalises.** Destroying spatial structure does not cost the
+   marginal on a target that is *not* rotation-invariant. The aperture result
+   was not an artifact of that target.
+2. **Spatial structure is worse than useless through a random projection** —
+   removing it *doubles* the marginal, 3/3 paired, ~7.6 sd. The honest reading
+   is not that a scalar carries more information: touch-alone AUC barely moves
+   (0.6093 → 0.6199) while the marginal doubles, and the scalar arm's variance
+   is *half* the full arm's (0.0005 vs 0.0010). That is the signature of
+   **regularisation** — a random CNN on a structured 16x16 map emits
+   high-variance noise across all 64 dimensions, which a linear probe then has
+   to fit around; fed a spatially-constant input it emits a much cleaner
+   function of the pressure time series.
+3. **A random encoder fed only total pressure matches a retrieval-pretrained
+   encoder fed the full map** — +0.0179 (sd 0.0005) vs +0.0165 (sd 0.0011).
+   Within ~1 sd, so say *matches*, not *beats*.
+
+**§2.27 is confirmed with seeded encoders.** Its k=2 pretrained-vs-random gap
+previously compared three pretrained seeds against **one unseeded** random run.
+Now both sides have three: pretrained +0.0165 vs random +0.0088, a 1.9x gap at
+roughly 7 sd. The claim that the learned representation supplies about half the
+marginal at short horizons stands.
+
+> **Random-encoder init variance is small — the worry that motivated this run
+> was unfounded.** sd 0.0010 across three inits, essentially identical to the
+> pretrained encoders' 0.0011. Worth recording because the opposite was assumed.
+
+**Limits.** k=2 is paired and seeded; k=8 is a single unseeded pair and should
+be seeded before the k=8 magnitude is quoted. All on OpenTouch.
+
 ### 2.35 STAG positive control — the ablation DOES destroy spatial tactile information
 
 `results/results_stag_scalar_control.json`, `scripts/stag_scalar_control.py`.

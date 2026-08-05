@@ -1,0 +1,81 @@
+{
+  "horizon_k": 2,
+  "sequence_length": 36,
+  "split_group_by": "clip",
+  "checkpoint": "logs/2026_06_22-21_01_54-model_OpenTouch-DINOv3-B16-Retrieval-lr_0.0001-b_256-j_8-p_amp/checkpoints/epoch_300.pt",
+  "random_tactile_encoder": true,
+  "tactile_reduce": "none",
+  "encoder_seed": 1,
+  "eval_split": "val",
+  "n_val_moving": 15196,
+  "results": {
+    "wrist_translation_removed": {
+      "tactile": {
+        "x": 0.5048265474055139,
+        "y": 0.5659226934017573,
+        "z": 0.49493737457074305
+      },
+      "shuffled_tactile": {
+        "x": 0.4951544246722882,
+        "y": 0.50305069669222,
+        "z": 0.5095089604601597
+      },
+      "pose_emb_causal": {
+        "x": 0.5689374057302901,
+        "y": 0.604487481973113,
+        "z": 0.5680682531619403
+      },
+      "pose_emb_plus_tactile": {
+        "x": 0.5665515823624256,
+        "y": 0.6086956550352884,
+        "z": 0.5603503159866839
+      },
+      "pose_emb_plus_shuffled": {
+        "x": 0.5637502095203379,
+        "y": 0.6019619181774859,
+        "z": 0.56606812449625
+      },
+      "_summary": {
+        "best_axis": "y",
+        "tactile_alone": 0.5659226934017573,
+        "shuffled_alone": 0.50305069669222,
+        "marginal_over_matched_pose": 0.004208173062175469,
+        "shuffled_marginal": -0.0025255637956270727
+      }
+    },
+    "rigid_removed_handframe": {
+      "tactile": {
+        "long": 0.6066079016722835,
+        "flex": 0.5713426810036029,
+        "normal": 0.5887475947138292
+      },
+      "shuffled_tactile": {
+        "long": 0.49311228818778047,
+        "flex": 0.49426118108800965,
+        "normal": 0.49515981839712647
+      },
+      "pose_emb_causal": {
+        "long": 0.6480688997014468,
+        "flex": 0.6040457960925346,
+        "normal": 0.627770105390536
+      },
+      "pose_emb_plus_tactile": {
+        "long": 0.6556114856966377,
+        "flex": 0.6105709297567219,
+        "normal": 0.6344295317835281
+      },
+      "pose_emb_plus_shuffled": {
+        "long": 0.6448314421925115,
+        "flex": 0.6004890990515183,
+        "normal": 0.6248150904365475
+      },
+      "_summary": {
+        "best_axis": "long",
+        "tactile_alone": 0.6066079016722835,
+        "shuffled_alone": 0.49311228818778047,
+        "marginal_over_matched_pose": 0.007542585995190976,
+        "shuffled_marginal": -0.0032374575089352264
+      }
+    }
+  }
+}

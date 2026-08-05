@@ -192,8 +192,19 @@ Do **not** quote 27.8% as STAG's accuracy — their paper reports ~76%. This is
 single-frame, 16x16, small CNN, and serves only as a floor showing the control
 works.
 
-Limits: two horizons, one seed per cell, OpenTouch only, and the aperture
-target is rotation-invariant by construction.
+**It generalises beyond aperture (§2.36).** The aperture target is
+rotation-invariant by construction, so the null could have been a property of
+that target. It is not. On the direction probe — target NOT rotation-invariant
+— the scalar reduction *doubles* the marginal, **3/3 paired on bit-identical
+encoders**, +0.0091 (sd 0.0012). Removing spatial structure is not merely
+free there; through a random projection it is actively harmful, which reads as
+regularisation rather than added information.
+
+A random encoder fed only total pressure **matches** a retrieval-pretrained
+encoder fed the full 16x16 map (+0.0179 vs +0.0165, within ~1 sd).
+
+Limits: OpenTouch only; k=8 on the probe is a single unseeded pair, so seed it
+before quoting that magnitude.
 
 ### Contribution 2, and the risk attached to it
 
