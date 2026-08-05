@@ -2,10 +2,13 @@
 
 THE CLAIM THIS MEASURES. A wrist-relative "articulation delta" -- the standard
 target for hand-motion prediction -- removes the wrist's TRANSLATION but not
-its ROTATION. Whatever fraction of that target the best rigid rotation about
-the wrist explains is not articulation at all. On OpenTouch that fraction is
-~95% at the median sample, which is why tactile appeared redundant with pose
-kinematics until the target was corrected.
+its ROTATION. This reports the fraction of that target's energy the BEST-FIT
+rigid rotation about the wrist explains. Because the rotation is fit per
+sample (a maximum over rotations), the share is an UPPER BOUND on rotation
+content -- equivalently, the residual is a lower bound on true articulation.
+Coordinated finger motion that happens to resemble a rigid rotation is counted
+as rotation. On OpenTouch the median share is ~96%, which is why tactile
+appeared redundant with pose kinematics until the target was corrected.
 
 WHY THIS FILE EXISTS SEPARATELY FROM scripts/rigid_diag.py. That script is
 welded to VideoTactilePoseDataset and this project's split machinery, so it
@@ -105,6 +108,22 @@ def rotation_share_report(poses, horizons=(2, 4, 8, 16), fps=None, name=None,
         pose_future = torch.cat(fut)
         grp = np.asarray(grp) if groups is not None else None
 
+        # Non-finite coordinates would abort the BATCHED Kabsch SVD for the
+        # whole run with an opaque LinAlgError -- and hand_frame_degenerate
+        # does not catch NaN (every comparison on NaN is False, so the sample
+        # would be KEPT). This project's loaders filter non-finite frames, but
+        # this file is the piece meant for third-party arrays, so the input
+        # contract cannot assume that. Dropped and counted, never trusted.
+        finite = torch.isfinite(pose_t).flatten(1).all(dim=1) & \
+                 torch.isfinite(pose_future).flatten(1).all(dim=1)
+        n_nonfinite = int((~finite).sum())
+        if n_nonfinite:
+            pose_t, pose_future = pose_t[finite], pose_future[finite]
+            if grp is not None:
+                grp = grp[finite.numpy()]
+        if pose_t.shape[0] == 0:
+            continue
+
         # Degenerate hands (collinear/collapsed joints) have no well-defined
         # palm frame; excluded rather than allowed to emit NaNs.
         good = ~hand_frame_degenerate(pose_t)
@@ -122,6 +141,7 @@ def rotation_share_report(poses, horizons=(2, 4, 8, 16), fps=None, name=None,
         share = rigid_fraction(pose_t, pose_future).numpy()
         entry = {
             "n_pairs": int(share.size),
+            "n_nonfinite_dropped": n_nonfinite,
             "median_rigid_share": float(np.median(share)),
             "mean_rigid_share": float(share.mean()),
             "frac_above_80pct": float((share > 0.8).mean()),

@@ -151,7 +151,7 @@ articulated in place.* Weaker, and far harder to dismiss.
 
 The target-correction consequence is unchanged and now rests on a
 three-encoder mean at four horizons (§2.27): corrected beats conventional
-~4x at k=2/4/8.
+3.3–3.9x at k=2/4/8 (exact: 3.9/3.3/3.7).
 
 ### Contribution 3 (NEW, 2026-08-04) — the sharpest thing in the project
 

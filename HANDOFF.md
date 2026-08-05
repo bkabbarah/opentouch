@@ -959,9 +959,11 @@ By motion decile, stillest to largest:
 | DexYCB, k=2 | 52.9% | 93.2% |
 | DexYCB, k=8 | 64.8% | 97.1% |
 
-The trend is monotone across all ten deciles in three of the four cases (the
-exception is DexYCB k=8, where deciles 3 and 4 invert by 2.3 points before the
-climb resumes).
+The trend is STRICTLY monotone across all ten deciles in the two k=2 cases.
+Both k=8 cases carry one small inversion before the climb resumes — OpenTouch
+deciles 2–3 by 0.13 points, DexYCB deciles 3–4 by 2.2 points. (An earlier
+version of this section said "three of the four"; a 0.02 tolerance in the
+check had masked the OpenTouch inversion. Validation D1.)
 
 **This also explains the median-vs-mean gap.** The published means (85.3%,
 81.6%) sit well below the medians because the distribution has a left tail —
@@ -971,7 +973,11 @@ The skew was never evidence of a fragile effect; it was the stillness tail.
 
 **Why still frames score low, verified rather than assumed.** The metric was
 checked on synthetic input: a pure rigid rotation scores **100.0%**, and
-isotropic per-joint noise with no rigid component scores **22.4%**. Annotation
+isotropic per-joint noise with no rigid component scores **~22%**. That
+synthetic figure is illustrative, not pinned: it has no committed artifact and
+moves several-fold with the jitter model (near 0.04 with a fixed wrist, ~0.23
+with a jittered one — validation D4). The measured decile trend above is the
+evidence; the synthetic number only names the mechanism. Annotation
 noise is badly explained by a single whole-hand rotation, so noise-dominated
 samples land near the bottom.
 
@@ -1319,7 +1325,7 @@ frzshuf-vs-pose, never alone"* — that rule invalidates the comparison
 
 | k | random vs pretrained, absolute |
 |---|---|
-| 2 | resolved — pretrained better |
+| 2 | **inside rounding** — |diff| equals exactly 2x the logging quantum; an earlier version called this "resolved (pretrained better)", which held only by float representation error (validation D2). This makes the section's conclusion stronger: NO horizon resolves the absolute comparison |
 | 4 | **inside rounding, not resolvable** |
 | 8 | resolved — random better |
 
@@ -1402,7 +1408,7 @@ one on all three datasets.
 **Between-take spread is wide** — at k=2 the nine takes run 49.0% to 100.0%,
 median across takes 69.2%. With only nine independent takes the pooled figure
 is sensitive to take length, so quote the pooled number *and* the range.
-`SMu4` sits at 1.0000: its shape does change (no frame pair is shape-frozen),
+`SMu4` (group `SMu40` in the JSON) sits at 1.0000: its shape does change (no frame pair is shape-frozen),
 but articulation is negligible beside its rotation. It is real data at the
 boundary, not an artifact, and it is one take of nine.
 
@@ -1476,7 +1482,10 @@ case measured (tabletop grasping at 67 ms) **81% of the standard target is
 still rotation**.
 
 **How to state the claim now.** Not "the target is ~95% rotation" — that is
-OpenTouch's number. Say: *the standard wrist-relative target is dominated by
+OpenTouch's number. And state the bound direction: the share is an **upper
+bound on rotation content by construction** (the rotation is best-fit per
+sample), so the residual is a lower bound on articulation — coordinated finger
+motion resembling a rigid rotation counts as rotation (validation D6). Say: *the standard wrist-relative target is dominated by
 whole-hand rotation, 81–96% of its energy depending on dataset and horizon,
 measured on two independent datasets.* The correction argument is unchanged and
 is now much harder to dismiss as a property of one capture setup.
@@ -1584,7 +1593,8 @@ Conventional vs corrected target, marginal over matched pose:
 | 8 | +0.0038 | **+0.0138** |
 | 16 | +0.0027 | **+0.0075** |
 
-Corrected beats conventional at every horizon, ~4x at k=2/4/8. This is the
+Corrected beats conventional at every horizon — 3.9x / 3.3x / 3.7x at
+k=2/4/8 (an earlier "~4x" was generous; validation D3). This is the
 paper's main claim and it is no longer a single-seed, single-horizon result.
 
 ### 2.26 The full horizon curve — §2.24's "strengthens with horizon" is WRONG
@@ -1694,6 +1704,11 @@ form of the claim currently available.
 k=2/4/8/16), so this is not an artifact of one prediction distance.
 
 ### 2.20 Retrieval bootstrap CIs — open question #2 closed
+
+> **Caveat added 2026-08-04 (validation D6):** the clip-split avg-pool figure
+> (16.76 T→P) is a SINGLE run whose source run is not identifiable in `logs/`,
+> against a 3-seed GRU mean. A fresh 3-seed clip avg-pool baseline (seeds
+> 42/0/1, full provenance) is training; quote ratios against that once landed.
 
 Clip-clustered, 1000 draws, fixed gallery (queries resampled only). T→P mAP:
 

@@ -413,3 +413,29 @@ def test_malformed_sequence_names_the_offender():
     bad = [synthetic_hand(20), np.zeros((10, 17, 3), dtype=np.float32)]
     with pytest.raises(ValueError, match=r"sequence 1 must be \(T,21,3\)"):
         rotation_share_report(bad, horizons=[2], fps=30)
+
+
+def test_nonfinite_frames_are_dropped_not_fatal():
+    """Robustness blocker found in validation: a single NaN coordinate used to
+    abort the BATCHED Kabsch SVD for the entire run with an opaque
+    LinAlgError, because hand_frame_degenerate does not catch NaN (every
+    comparison on NaN is False, so the sample was KEPT). The released
+    diagnostic must drop and count dirty samples instead of dying on them."""
+    sys.path.insert(0, os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
+    from rotation_share import rotation_share_report  # noqa: E402
+
+    clean = synthetic_hand(30, seed=0)
+    dirty = synthetic_hand(30, seed=1)
+    dirty[7, 3, 1] = np.nan
+    dirty[19, 10, 0] = np.inf
+
+    report = rotation_share_report([clean, dirty], horizons=[2], fps=30, name="dirty")
+    e = report["horizons"]["2"]
+    assert e["n_pairs"] > 0
+    assert e["n_nonfinite_dropped"] > 0, "dirty pairs must be counted, not silently kept"
+    assert np.isfinite(e["median_rigid_share"])
+
+    all_dirty = np.full((12, 21, 3), np.nan, dtype=np.float32)
+    report2 = rotation_share_report([all_dirty], horizons=[2], fps=30, name="allnan")
+    assert "2" not in report2["horizons"], "an all-NaN input must yield no entry, not a crash"
