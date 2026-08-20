@@ -1,0 +1,20 @@
+{
+  "split": "test",
+  "pose_to_tactile_recall@1": 0.07576840600428877,
+  "pose_to_tactile_recall@5": 0.23802716225875625,
+  "pose_to_tactile_recall@10": 0.3409578270192995,
+  "pose_to_tactile_mAP": 0.16272255778312683,
+  "tactile_to_pose_recall@1": 0.07934238741958542,
+  "tactile_to_pose_recall@5": 0.2523230879199428,
+  "tactile_to_pose_recall@10": 0.3545389563974267,
+  "tactile_to_pose_mAP": 0.1697978973388672,
+  "_meta": {
+    "checkpoint": "logs/clip_avgpool_s0/checkpoints/epoch_300.pt",
+    "split": "test",
+    "split_group_by": "clip",
+    "split_group_by_source": "cli",
+    "data": "preprocessed_data/train_dataset",
+    "sequence_length": 20,
+    "harness": "opentouch_train.eval"
+  }
+}

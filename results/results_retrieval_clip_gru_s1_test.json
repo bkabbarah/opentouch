@@ -1,0 +1,20 @@
+{
+  "split": "test",
+  "pose_to_tactile_recall@1": 0.315939957112223,
+  "pose_to_tactile_recall@5": 0.6240171551107935,
+  "pose_to_tactile_recall@10": 0.7555396711937098,
+  "pose_to_tactile_mAP": 0.4578920602798462,
+  "tactile_to_pose_recall@1": 0.32666190135811296,
+  "tactile_to_pose_recall@5": 0.6333095067905646,
+  "tactile_to_pose_recall@10": 0.7512508934953538,
+  "tactile_to_pose_mAP": 0.4676193296909332,
+  "_meta": {
+    "checkpoint": "logs/2026_07_06-22_36_12-model_OpenTouch-DINOv3-B16-Retrieval-lr_0.0001-b_256-j_8-p_amp/checkpoints/epoch_300.pt",
+    "split": "test",
+    "split_group_by": "clip",
+    "split_group_by_source": "cli",
+    "data": "preprocessed_data/train_dataset",
+    "sequence_length": 20,
+    "harness": "opentouch_train.eval"
+  }
+}

@@ -1,0 +1,194 @@
+% =====================================================================
+% RETRIEVAL / POSE ENCODER SECTION
+% Bashar Kabbarah — draft for OpenTouch main submission
+%
+% TODO markers flag every value I could not confirm from HANDOFF.md.
+% Do not submit with any \TODO surviving.
+%
+% VERIFICATION PASS 2026-08-19: every value below re-derived from result
+% JSONs / code / run params.txt, never from HANDOFF.md. Source citations
+% sit in % comments beside each value. Remaining \TODO markers flag
+% claims that are wrong or unverifiable, not missing numbers.
+% =====================================================================
+
+\newcommand{\TODO}[1]{\textcolor{red}{[TODO: #1]}}
+
+% ---------------------------------------------------------------------
+% METHODS  (main body — target ~1/3 column)
+% ---------------------------------------------------------------------
+
+\subsection{Pose encoder}
+\label{sec:pose-encoder}
+
+% T=20 per every retrieval run's params.txt (sequence_length: 20) and
+% scripts/train.sh:17; eval.py:110 default is also 20. The draft's T=36 was
+% the regression/probe window, never the retrieval window.
+Each pose sequence is a window of $T=20$ frames of MANO keypoints,
+\TODO{``MANO keypoints'' is wrong --- OpenTouch pose is glove-derived,
+21-keypoint MediaPipe-style layout, not MANO. Suggest ``hand keypoints''.}
+$21$ joints $\times\,3$ coordinates, giving a $63$-dimensional vector per
+frame. The pose branch maps this window to a single embedding in the shared
+tactile--pose space.
+
+Prior versions of this encoder average-pooled the per-frame features before
+projection, discarding the temporal ordering of the window. We instead encode
+the sequence with a bidirectional GRU (hidden size $120$, $2$ layers),
+% src/opentouch/pose_encoder.py:56 -- nn.GRU(128, 120, num_layers=2, bidirectional=True)
+take the concatenation of the final forward and final backward hidden states
+% src/opentouch/pose_encoder.py:105
+as a $240$-dimensional summary, and apply a single linear projection to the
+% src/opentouch/pose_encoder.py:76 -- Linear(240, 64); embed_dim=64 per
+% src/opentouch/model_configs/OpenTouch-DINOv3-B16-Retrieval.json
+$64$-dimensional shared space. No nonlinearity is applied between the pooled
+summary and the projection.
+\TODO{previous sentence is FALSE for the GRU arm: a ReLU is applied to the
+240-d summary before projection (pose\_encoder.py:108). It is true only for
+the avg-pool baseline (pose\_encoder.py:115). Flagged, not rewritten.}
+
+Tactile and pose branches are trained jointly with a symmetric InfoNCE
+% symmetric: src/opentouch/loss.py:106-109 (mean of CE over both directions)
+objective over in-batch negatives, at a learnable temperature initialised to
+$0.07$,
+% src/opentouch/model.py:81-84 -- logit_scale nn.Parameter, init log(1/0.07)
+using AdamW with learning rate $10^{-4}$, batch size $256$,
+for $300$ epochs. Results are reported over three encoder seeds
+($42$, $0$, $1$).
+% src/opentouch_train/main.py:235-242 (AdamW; betas 0.9/0.999 and eps 1e-8
+% from params.py:7; wd 0.01 excluded for bias/BN/logit_scale). Schedule:
+% cosine with 5% linear warmup (main.py:286-291; every run's params.txt:
+% lr 0.0001, batch_size 256, epochs 300, lr_scheduler cosine, warmup 0.05).
+% Seed runs identified EMPIRICALLY by re-evaluation 2026-08-19:
+%   GRU:     logs/2026_06_22-21_01_54 (s42), 2026_07_06-22_35_40 (s0),
+%            2026_07_06-22_36_12 (s1)
+%   AvgPool: logs/clip_avgpool_s{42,0,1}
+% (the 2026_07_06-15_2x pair scores ~72 on the clip gallery -- different
+% partition, contaminated, excluded; see verification report)
+
+\paragraph{Retrieval protocol.}
+We report mean average precision as the mean reciprocal rank of the correct
+counterpart, scored against the entire evaluation split as the gallery.
+% src/opentouch/metrics.py:75-77 -- single positive (diagonal), rank =
+% #(sims >= correct sim) over the full split, mAP = mean(1/rank). With one
+% positive per query, AP == reciprocal rank, so the sentence is exact.
+This metric is a function of gallery size, so we report the number of gallery
+windows alongside every mAP. We evaluate under two splits. The
+\emph{clip-disjoint} split holds out whole clips but allows the same
+participant to appear in train and evaluation. The
+\emph{participant-disjoint} split holds out whole scenes, so no evaluation
+participant is seen during training.
+
+% ---------------------------------------------------------------------
+% APPENDIX
+% ---------------------------------------------------------------------
+
+\subsection{Pose encoder: retrieval results}
+\label{app:retrieval}
+
+\begin{table}[h]
+\centering
+\caption{Tactile--pose retrieval, clip-disjoint split, test. Mean $\pm$ s.d.
+over three seeds ($42$, $0$, $1$); gallery $N=1399$ windows over $296$ clips.}
+% gallery: results_bootstrap_clip_gru_test.json tactile_to_pose.n_test_samples
+% = 1399, .n_clusters = 296 (same in all three avgpool seed bootstrap JSONs)
+\label{tab:retrieval-clip}
+\begin{tabular}{lccc}
+\toprule
+Pose encoder & T$\rightarrow$P mAP & P$\rightarrow$T mAP & Ratio \\
+\midrule
+% point estimates, 3 seeds: results/results_retrieval_clip_avgpool_s{42,0,1}_test.json
+% T2P 16.2772/16.9798/16.1288, P2T 15.6856/16.2723/16.3113 (mean +- population sd)
+Average pooling & $16.46 \pm 0.37$ & $16.09 \pm 0.29$ & --- \\
+% point estimates, 3 seeds: results/results_retrieval_clip_gru_s{42,0,1}_test.json
+% T2P 45.4634/46.2843/46.7619, P2T 44.3875/46.7151/45.7892
+% ratios of means: 2.8046 (T2P), 2.8360 (P2T)
+Sequence (biGRU) & $46.17 \pm 0.54$ & $45.63 \pm 0.96$ & $2.80\times$ / $2.84\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Tactile--pose retrieval, participant-disjoint split, test.
+Point estimates with clip-clustered bootstrap 95\% intervals
+($1000$ draws, fixed gallery, queries resampled); gallery $N=1411$ windows
+over $257$ clips.}
+% gallery: results_bootstrap_scene_gru_test.json tactile_to_pose
+% .n_test_samples = 1411, .n_clusters = 257; protocol fields: .n_bootstrap =
+% 1000, .cluster_unit = "clip", .gallery = "fixed (queries resampled only)"
+\label{tab:retrieval-scene}
+\begin{tabular}{lcc}
+\toprule
+Pose encoder & T$\rightarrow$P mAP & 95\% CI \\
+\midrule
+% point estimate: results/results_retrieval_scene_avgpool_norelu_test.json
+% .tactile_to_pose_mAP = 0.064422 (draft's 6.46 was the bootstrap MEAN, which
+% contradicted this caption's "point estimates"); CI from
+% results/results_bootstrap_scene_avgpool_test.json
+Average pooling & $6.44$ & $[5.45,\ 7.59]$ \\
+% point estimate: results/results_retrieval_scene_p2t_scene_gru_test.json
+% .tactile_to_pose_mAP = 0.283080; CI from results/results_bootstrap_scene_gru_test.json
+Sequence (biGRU) & $28.31$ & $[25.59,\ 31.01]$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Replacing average pooling with a sequence encoder improves tactile--pose
+retrieval by $2.80\times$ (T$\rightarrow$P) and $2.84\times$
+(P$\rightarrow$T) on the clip-disjoint split. The margin widens to
+% 0.283080 / 0.064422 = 4.3941 from the unrounded point estimates. The
+% draft's 4.40 arises only by dividing already-rounded values (28.31/6.44)
+% and is not reproducible from any consistent unrounded pairing.
+$4.39\times$ under participant-disjoint evaluation, where the bootstrap
+intervals for the two encoders do not approach overlap.
+
+Both absolute figures fall sharply when participants are held out
+% 46.17 (3-seed mean; the draft's 45.5 was seed 42 alone) -> 28.31 point;
+% 16.46 (3-seed mean) -> 6.44 point
+($46.2 \rightarrow 28.3$ for the sequence encoder, $16.5 \rightarrow 6.4$
+for average pooling), indicating that a substantial part of clip-disjoint
+retrieval performance reflects participant-specific regularities rather than
+transferable tactile--pose structure. The architectural conclusion is
+unaffected by this and in fact strengthens: temporal structure in the pose
+window matters more, not less, when the model cannot rely on having seen the
+participant.
+
+\paragraph{Baseline fidelity.}
+The average-pooling baseline reported here is the upstream architecture
+exactly: a linear projection applied directly to the $128$-dimensional pooled
+% src/opentouch/pose_encoder.py:76,115 -- Linear(128, 64), no ReLU on this path
+vector. Two discrepancies were found and corrected before these numbers were
+produced. First, an earlier implementation zero-padded the pooled vector to
+$240$ dimensions so that both pooling modes could share a projection shape,
+% commits f147054 (padded version) -> f71a25e (fix); HANDOFF.md:305-311
+which prevented upstream checkpoints from loading. Second, a ReLU that was
+introduced alongside the sequence encoder had been inherited by the pooling
+path, where it does not belong; with that ReLU present, the upstream
+% commit 1ab43d4; the no-ReLU requirement is pinned by
+% tests/test_pose_encoder_temporal_mode.py
+checkpoint scores $10.25$ rather than $16.76$.
+\TODO{10.25-vs-16.76: documented at HANDOFF.md:315 and VALIDATION.md:681 but
+NO committed eval artifact exists, and regenerating requires the pre-fix
+encoder (commit f147054). Either regenerate or soften to ``roughly 10''.
+The 16.76 itself is traceable:
+results/results\_retrieval\_clip\_avgpool\_test.json .tactile\_to\_pose\_mAP
+= 0.167565 --- but note that run's training provenance is unidentified
+(HANDOFF \S2.20 caveat); the seeded baselines above supersede it.}
+Both fixes make the baseline
+stronger, and all comparisons above use the corrected baseline.
+
+\paragraph{Reproducibility note.}
+Retrieval mAP is computed against the full evaluation gallery, so the split
+used to construct that gallery must match the split the checkpoint was
+trained under. Evaluating a participant-disjoint checkpoint against a
+clip-disjoint gallery inflates T$\rightarrow$P mAP to $72.09$,
+% regenerated deliberately 2026-08-19, same bootstrap protocol and seed:
+% results/results_bootstrap_scene_gru_clipgallery_demo_test.json
+% .tactile_to_pose.mean_mAP = 72.088 (vs correct-gallery 28.31)
+because the gallery then contains the model's own training participants.
+The evaluation harness records the gallery split alongside every result.
+\TODO{last sentence is overbroad: bootstrap\_eval.py records
+split\_group\_by (+ source) in its output, but the point-estimate eval
+(opentouch\_train/eval.py:282-284) historically saved metrics only. The
+per-seed JSONs committed for this section carry an injected \_meta block;
+older results\_retrieval\_*.json record nothing. Scope the claim to the
+bootstrap harness or reword.}
