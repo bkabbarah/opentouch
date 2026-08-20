@@ -181,6 +181,15 @@ def main(argv=None):
     # override wins but says so, and an older checkpoint that predates the
     # field falls back to the historical 'clip' behaviour.
     split_group_by = args.split_group_by or meta.get("split_group_by") or "clip"
+    # Recorded into the output JSON so every result is self-describing about
+    # WHICH gallery scored it -- the silent clip-fallback once scored a
+    # scene-trained model at 72.09 mAP instead of 28.31, and a number without
+    # its gallery split attached cannot be caught after the fact.
+    split_group_by_source = (
+        "cli" if args.split_group_by
+        else "checkpoint" if meta.get("split_group_by")
+        else "default"
+    )
     if args.split_group_by and meta.get("split_group_by") and args.split_group_by != meta["split_group_by"]:
         logging.warning(
             "--split-group-by=%s OVERRIDES the checkpoint's recorded %s -- the eval gallery "
@@ -280,6 +289,18 @@ def main(argv=None):
     print(f"\n{'='*60}")
 
     if args.output:
+        # Additive provenance block: metric keys stay flat and unchanged, so
+        # existing consumers that read e.g. tactile_to_pose_mAP are unaffected.
+        metrics["_meta"] = {
+            "checkpoint": args.checkpoint,
+            "split": args.split,
+            "split_group_by": split_group_by,
+            "split_group_by_source": split_group_by_source,
+            "split_seed": args.seed,
+            "sequence_length": args.sequence_length,
+            "data": args.data,
+            "harness": "opentouch_train.eval",
+        }
         with open(args.output, "w") as f:
             json.dump(metrics, f, indent=2)
         log.info(f"Saved metrics to {args.output}")

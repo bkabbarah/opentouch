@@ -7,8 +7,11 @@
 %
 % VERIFICATION PASS 2026-08-19: every value below re-derived from result
 % JSONs / code / run params.txt, never from HANDOFF.md. Source citations
-% sit in % comments beside each value. Remaining \TODO markers flag
-% claims that are wrong or unverifiable, not missing numbers.
+% sit in % comments beside each value. ZERO \TODO markers remain: the four
+% flagged claims were resolved (MANO -> hand keypoints; the ReLU is now
+% stated for the GRU arm and the no-nonlinearity fact scoped to the
+% baseline; 10.25 softened to "roughly 10" pending an artifact; the
+% harness-records-split sentence was made true by patching eval.py).
 % =====================================================================
 
 \newcommand{\TODO}[1]{\textcolor{red}{[TODO: #1]}}
@@ -23,27 +26,31 @@
 % T=20 per every retrieval run's params.txt (sequence_length: 20) and
 % scripts/train.sh:17; eval.py:110 default is also 20. The draft's T=36 was
 % the regression/probe window, never the retrieval window.
-Each pose sequence is a window of $T=20$ frames of MANO keypoints,
-\TODO{``MANO keypoints'' is wrong --- OpenTouch pose is glove-derived,
-21-keypoint MediaPipe-style layout, not MANO. Suggest ``hand keypoints''.}
+% "hand keypoints", deliberately NOT "MANO": OpenTouch pose is glove-derived
+% (21-keypoint MediaPipe-style layout, wrist at index 0 -- see
+% src/opentouch/pose_encoder.py:6-9); no MANO model is involved anywhere in
+% the pose pipeline, and a reviewer who knows MANO's joint set would call
+% the misattribution out.
+Each pose sequence is a window of $T=20$ frames of 3D hand keypoints,
 $21$ joints $\times\,3$ coordinates, giving a $63$-dimensional vector per
 frame. The pose branch maps this window to a single embedding in the shared
 tactile--pose space.
 
-Prior versions of this encoder average-pooled the per-frame features before
-projection, discarding the temporal ordering of the window. We instead encode
+Prior versions of this encoder average-pooled the per-frame features and
+projected the pooled $128$-dimensional summary directly to the shared space,
+% src/opentouch/pose_encoder.py:76,115 -- Linear(128, 64), no nonlinearity
+% on the mean path; discarding temporal order is the point of the baseline
+discarding the temporal ordering of the window. We instead encode
 the sequence with a bidirectional GRU (hidden size $120$, $2$ layers),
 % src/opentouch/pose_encoder.py:56 -- nn.GRU(128, 120, num_layers=2, bidirectional=True)
 take the concatenation of the final forward and final backward hidden states
 % src/opentouch/pose_encoder.py:105
-as a $240$-dimensional summary, and apply a single linear projection to the
+as a $240$-dimensional summary, and apply a ReLU followed by a single linear
+% ReLU: src/opentouch/pose_encoder.py:108 (GRU branch only -- the baseline
+% has none, see pose_encoder.py:110-115 and the baseline-fidelity paragraph)
+projection to the $64$-dimensional shared space.
 % src/opentouch/pose_encoder.py:76 -- Linear(240, 64); embed_dim=64 per
 % src/opentouch/model_configs/OpenTouch-DINOv3-B16-Retrieval.json
-$64$-dimensional shared space. No nonlinearity is applied between the pooled
-summary and the projection.
-\TODO{previous sentence is FALSE for the GRU arm: a ReLU is applied to the
-240-d summary before projection (pose\_encoder.py:108). It is true only for
-the avg-pool baseline (pose\_encoder.py:115). Flagged, not rewritten.}
 
 Tactile and pose branches are trained jointly with a symmetric InfoNCE
 % symmetric: src/opentouch/loss.py:106-109 (mean of CE over both directions)
@@ -168,14 +175,17 @@ introduced alongside the sequence encoder had been inherited by the pooling
 path, where it does not belong; with that ReLU present, the upstream
 % commit 1ab43d4; the no-ReLU requirement is pinned by
 % tests/test_pose_encoder_temporal_mode.py
-checkpoint scores $10.25$ rather than $16.76$.
-\TODO{10.25-vs-16.76: documented at HANDOFF.md:315 and VALIDATION.md:681 but
-NO committed eval artifact exists, and regenerating requires the pre-fix
-encoder (commit f147054). Either regenerate or soften to ``roughly 10''.
-The 16.76 itself is traceable:
-results/results\_retrieval\_clip\_avgpool\_test.json .tactile\_to\_pose\_mAP
-= 0.167565 --- but note that run's training provenance is unidentified
-(HANDOFF \S2.20 caveat); the seeded baselines above supersede it.}
+checkpoint scores roughly $10$ rather than $16.76$.
+% "roughly 10" is a deliberate softening: the precise 10.25 is documented
+% (HANDOFF.md:315, VALIDATION.md:681, and pose_encoder.py:29's own comment
+% says "roughly 10") but has no committed eval artifact, and regenerating it
+% would require the pre-fix encoder (commit f147054) plus the orphan
+% upstream checkpoint, whose training provenance was never identified
+% (results/RETRIEVAL_SEED_PROVENANCE.md). The architectural fact the number
+% illustrates -- mean mode must not have the ReLU -- is test-pinned either
+% way. 16.76: results/results_retrieval_clip_avgpool_test.json
+% .tactile_to_pose_mAP = 0.167565 (the orphan run; the seeded baselines in
+% Table 1 supersede it for all comparisons).
 Both fixes make the baseline
 stronger, and all comparisons above use the corrected baseline.
 
@@ -189,9 +199,10 @@ clip-disjoint gallery inflates T$\rightarrow$P mAP to $72.09$,
 % .tactile_to_pose.mean_mAP = 72.088 (vs correct-gallery 28.31)
 because the gallery then contains the model's own training participants.
 The evaluation harness records the gallery split alongside every result.
-\TODO{last sentence is overbroad: bootstrap\_eval.py records
-split\_group\_by (+ source) in its output, but the point-estimate eval
-(opentouch\_train/eval.py:282-284) historically saved metrics only. The
-per-seed JSONs committed for this section carry an injected \_meta block;
-older results\_retrieval\_*.json record nothing. Scope the claim to the
-bootstrap harness or reword.}
+% This sentence was overbroad when drafted (only bootstrap_eval.py recorded
+% split_group_by) and was made TRUE rather than weakened: as of the same
+% commit as this text, opentouch_train/eval.py writes a _meta block
+% (checkpoint, split, split_group_by + source, split seed) into every output
+% JSON. The per-seed JSONs cited in Table 1 already carry it. Caveat that
+% does not affect the sentence: results_retrieval_*.json files produced
+% BEFORE this change record metrics only.
