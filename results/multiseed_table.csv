@@ -1,0 +1,13 @@
+direction,avgpool_single_p2t,gru_single_p2t,gru_single_p2t_seed0,gru_single_p2t_seed1,gru_single_vt2p,gru_single_vt2p_seed0,gru_single_vt2p_seed1,gru_single_vp2t,gru_single_vp2t_seed0,gru_single_vp2t_seed1
+V -> T,,,,,,,,,,
+T -> V,,,,,,,,,,
+P -> T,15.64,44.39,46.72,45.79,,,,,,
+T -> P,16.76,45.46,46.28,46.76,,,,,,
+V -> P,,,,,,,,,,
+P -> V,,,,,,,,,,
+VP -> T,,,,,,,,58.88,59.21,58.05
+T -> VP,,,,,,,,56.97,57.67,57.78
+TP -> V,,,,,,,,,,
+V -> TP,,,,,,,,,,
+VT -> P,,,,,58.45,58.99,57.12,,,
+P -> VT,,,,,57.16,57.93,55.65,,,

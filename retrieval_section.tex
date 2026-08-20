@@ -61,8 +61,10 @@ for $300$ epochs. Results are reported over three encoder seeds
 %   GRU:     logs/2026_06_22-21_01_54 (s42), 2026_07_06-22_35_40 (s0),
 %            2026_07_06-22_36_12 (s1)
 %   AvgPool: logs/clip_avgpool_s{42,0,1}
-% (the 2026_07_06-15_2x pair scores ~72 on the clip gallery -- different
-% partition, contaminated, excluded; see verification report)
+% (the 2026_07_06-15_2x pair scores ~72 on the clip gallery -- trained
+% pre-028eba5 when --seed also reseeded the SPLIT, so different partition;
+% quarantined on the cluster. Full mapping, evidence and quarantine record:
+% results/RETRIEVAL_SEED_PROVENANCE.md)
 
 \paragraph{Retrieval protocol.}
 We report mean average precision as the mean reciprocal rank of the correct
@@ -111,7 +113,8 @@ Sequence (biGRU) & $46.17 \pm 0.54$ & $45.63 \pm 0.96$ & $2.80\times$ / $2.84\ti
 \caption{Tactile--pose retrieval, participant-disjoint split, test.
 Point estimates with clip-clustered bootstrap 95\% intervals
 ($1000$ draws, fixed gallery, queries resampled); gallery $N=1411$ windows
-over $257$ clips.}
+over $257$ clips drawn from the held-out scenes (the bootstrap cluster unit
+is the clip under both splits).}
 % gallery: results_bootstrap_scene_gru_test.json tactile_to_pose
 % .n_test_samples = 1411, .n_clusters = 257; protocol fields: .n_bootstrap =
 % 1000, .cluster_unit = "clip", .gallery = "fixed (queries resampled only)"
